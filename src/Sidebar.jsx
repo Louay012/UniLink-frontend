@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { COURSES, MOCK_USER } from './mockData';
 
-export default function Sidebar() {
+export default function Sidebar({ basePath = '' }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(true);
@@ -34,7 +34,8 @@ export default function Sidebar() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isActive = (path) => location.pathname === path;
+  const withBase = (path) => `${basePath}${path}`;
+  const isActive = (path) => location.pathname === withBase(path);
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/' },
@@ -67,7 +68,7 @@ export default function Sidebar() {
       <div
         className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 z-40 ${
           isOpen ? 'w-64' : 'w-20'
-        } ${!isMobile && 'md:static md:w-64'}`}
+        } ${!isMobile && 'md:fixed md:w-64'}`}
       >
         {/* Header */}
         <div className="p-4 border-b border-slate-700">
@@ -106,7 +107,7 @@ export default function Sidebar() {
                     if (item.isSection) {
                       setIsCoursesExpanded(!isCoursesExpanded);
                     } else {
-                      navigate(item.path);
+                      navigate(withBase(item.path));
                       if (isMobile) setIsOpen(false);
                     }
                   }}
@@ -135,11 +136,11 @@ export default function Sidebar() {
                       <button
                         key={course.id}
                         onClick={() => {
-                          navigate(`/courses/${course.id}`);
+                          navigate(withBase(`/courses/${course.id}`));
                           if (isMobile) setIsOpen(false);
                         }}
                         className={`w-full text-left text-sm px-3 py-1.5 rounded transition-all ${
-                          location.pathname === `/courses/${course.id}`
+                          location.pathname === withBase(`/courses/${course.id}`)
                             ? 'bg-primary bg-opacity-20 text-white'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
@@ -154,7 +155,7 @@ export default function Sidebar() {
                     ))}
                     <button
                       onClick={() => {
-                        navigate('/courses');
+                        navigate(withBase('/courses'));
                         if (isMobile) setIsOpen(false);
                       }}
                       className="w-full text-left text-sm px-3 py-1.5 text-primary hover:text-blue-300 font-semibold"
@@ -180,7 +181,7 @@ export default function Sidebar() {
                 return (
                   <button
                     key={item.path}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => navigate(withBase(item.path))}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
                       isActive(item.path)
                         ? 'bg-primary text-white'
@@ -204,7 +205,7 @@ export default function Sidebar() {
               return (
                 <button
                   key={item.path}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => navigate(withBase(item.path))}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
                     isActive(item.path)
                       ? 'bg-primary text-white'

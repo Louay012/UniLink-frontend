@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Lock, Play, Download, Send } from 'lucide-react';
 import { COURSES, ANNOUNCEMENTS, LESSONS, CHAT_MESSAGES, formatDate } from './mockData';
 
-export default function CourseDetails() {
+export default function CourseDetails({ basePath = '' }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const withBase = (path) => `${basePath}${path}`;
   const [activeTab, setActiveTab] = useState('announcements');
   const [expandedWeeks, setExpandedWeeks] = useState({});
   const [chatInput, setChatInput] = useState('');
@@ -25,7 +26,7 @@ export default function CourseDetails() {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">Course not found</h2>
           <button
-            onClick={() => navigate('/courses')}
+            onClick={() => navigate(withBase('/courses'))}
             className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90"
           >
             Back to Courses
@@ -67,7 +68,7 @@ export default function CourseDetails() {
       >
         <div className="absolute top-4 left-4">
           <button
-            onClick={() => navigate('/courses')}
+            onClick={() => navigate(withBase('/courses'))}
             className="flex items-center gap-2 text-white hover:bg-white hover:bg-opacity-20 px-4 py-2 rounded-lg transition-all"
           >
             <ArrowLeft size={20} />

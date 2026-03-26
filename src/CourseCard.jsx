@@ -2,12 +2,13 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Users, FileText } from 'lucide-react';
 import { formatDate } from './mockData';
 
-export default function CourseCard({ course }) {
+export default function CourseCard({ course, basePath = '' }) {
   const navigate = useNavigate();
+  const withBase = (path) => `${basePath}${path}`;
 
   return (
     <div
-      onClick={() => navigate(`/courses/${course.id}`)}
+      onClick={() => navigate(withBase(`/courses/${course.id}`))}
       className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer hover:scale-105 border border-slate-200"
     >
       {/* Color Header */}

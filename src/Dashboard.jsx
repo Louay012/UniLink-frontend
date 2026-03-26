@@ -2,10 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import CourseCard from './CourseCard';
 import { COURSES, MOCK_USER } from './mockData';
 
-export default function Dashboard() {
+export default function Dashboard({ basePath = '' }) {
   const navigate = useNavigate();
   const recentCourses = COURSES.slice(0, 3);
   const coursesWithAnnouncements = COURSES.filter((c) => c.newAnnouncements > 0);
+  const withBase = (path) => `${basePath}${path}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -52,7 +53,7 @@ export default function Dashboard() {
               📢 Latest Announcements
             </h2>
             <button
-              onClick={() => navigate('/announcements')}
+              onClick={() => navigate(withBase('/announcements'))}
               className="text-primary hover:text-opacity-80 font-semibold"
             >
               View All →
@@ -65,7 +66,7 @@ export default function Dashboard() {
                 key={course.id}
                 className="bg-white rounded-lg shadow border-l-4 p-4 hover:shadow-md transition-all cursor-pointer"
                 style={{ borderLeftColor: course.color }}
-                onClick={() => navigate(`/courses/${course.id}`)}
+                onClick={() => navigate(withBase(`/courses/${course.id}`))}
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -92,7 +93,7 @@ export default function Dashboard() {
               📚 Your Courses
             </h2>
             <button
-              onClick={() => navigate('/courses')}
+              onClick={() => navigate(withBase('/courses'))}
               className="text-primary hover:text-opacity-80 font-semibold"
             >
               View All →
@@ -101,7 +102,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recentCourses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+              <CourseCard key={course.id} course={course} basePath={basePath} />
             ))}
           </div>
         </div>
