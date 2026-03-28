@@ -1,32 +1,48 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
-
-const roleOptions = [
-  { label: "Student", value: "STUDENT", userId: "u-student-1" },
-  { label: "Teacher", value: "TEACHER", userId: "u-teacher-1" },
-  { label: "Coordinator", value: "COORDINATOR", userId: "u-coordinator-1" }
-];
+import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [selectedRole, setSelectedRole] = useState(roleOptions[0]);
+  // When the page loads, check if a token was already saved
+  const [user,  setUser]  = useState(() => {
+    const saved = localStorage.getItem("unilink_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem("unilink_token") || null;
+  });
+
+  // Login: save user + token in state AND in localStorage
+  // localStorage means it survives page refresh
+  function login(userData, jwtToken) {
+    setUser(userData);
+    setToken(jwtToken);
+    localStorage.setItem("unilink_user",  JSON.stringify(userData));
+    localStorage.setItem("unilink_token", jwtToken);
+  }
+
+  // Logout: clear everything
+  function logout() {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("unilink_user");
+    localStorage.removeItem("unilink_token");
+  }
 
   const value = useMemo(
-    () => ({
-      selectedRole,
-      setSelectedRole,
-      roleOptions
-    }),
-    [selectedRole]
+    () => ({ user, token, login, logout, isAdmin: user?.role === "ADMIN" }),
+    [user, token]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 }

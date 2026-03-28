@@ -8,6 +8,7 @@ import DashboardPage from "./app/dashboard/DashboardPage";
 import ChatPage from "./app/chat/ChatPage";
 import GroupsPage from "./app/groups/GroupsPage";
 import MyWorkApp from "./MyWorkApp";
+import AdminPage from "./app/admin/AdminPage";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/my-work/*" element={<MyWorkApp />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route
             path="*"
             element={
