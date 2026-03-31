@@ -1,6 +1,12 @@
 const API_BASE = "http://localhost:4000/api";
 
-async function apiRequest(path, options = {}) {
+function isRoleContext(value) {
+  return Boolean(value && typeof value === "object" && typeof value.value === "string");
+}
+
+async function apiRequest(path, roleOrOptions = {}, maybeOptions = null) {
+  const roleContext = isRoleContext(roleOrOptions) ? roleOrOptions : null;
+  const options = maybeOptions || (roleContext ? {} : roleOrOptions) || {};
   const token = localStorage.getItem("unilink_token");
 
   const response = await fetch(`${API_BASE}${path}`, {
@@ -9,6 +15,8 @@ async function apiRequest(path, options = {}) {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(roleContext?.value ? { "x-unilink-role": roleContext.value } : {}),
+      ...(roleContext?.userId ? { "x-unilink-user-id": roleContext.userId } : {}),
       ...options.headers,
     },
   });
