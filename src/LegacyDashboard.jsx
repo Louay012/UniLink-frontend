@@ -23,11 +23,49 @@ export default function LegacyDashboard() {
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [courseQuery, setCourseQuery] = useState("");
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) || null,
     [courses, selectedCourseId]
   );
+
+  const filteredCourses = useMemo(() => {
+    const query = courseQuery.trim().toLowerCase();
+    if (!query) {
+      return courses;
+    }
+
+    return courses.filter((course) => {
+      const haystack = `${course.title} ${course.code} ${course.teacher?.name || ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [courses, courseQuery]);
+
+  const dashboardStats = useMemo(() => {
+    const totalAnnouncements = courses.reduce(
+      (acc, course) => acc + Number(course.announcementCount || 0),
+      0
+    );
+    const totalAttachments = courses.reduce(
+      (acc, course) => acc + Number(course.attachmentCount || 0),
+      0
+    );
+
+    return [
+      { label: "Courses", value: courses.length },
+      { label: "Announcements", value: totalAnnouncements },
+      { label: "Attachments", value: totalAttachments },
+      { label: "Active Role", value: selectedRole.label }
+    ];
+  }, [courses, selectedRole.label]);
+
+  const recentActivity = useMemo(() => {
+    return announcements
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 4);
+  }, [announcements]);
 
   async function fetchCourses() {
     setIsLoading(true);
@@ -120,20 +158,38 @@ export default function LegacyDashboard() {
 
       {error ? <div className="error-banner">{error}</div> : null}
 
+      <section className="stats-grid">
+        {dashboardStats.map((stat) => (
+          <article className="stat-card" key={stat.label}>
+            <p>{stat.label}</p>
+            <h3>{stat.value}</h3>
+          </article>
+        ))}
+      </section>
+
       <main className="layout">
         <aside className="courses-panel">
           <div className="panel-header">
             <h2>My Courses</h2>
             {isLoading ? <span>Loading...</span> : <span>{courses.length} courses</span>}
           </div>
+
+          <input
+            className="course-search"
+            type="text"
+            placeholder="Search by title, code, or teacher"
+            value={courseQuery}
+            onChange={(event) => setCourseQuery(event.target.value)}
+          />
+
           <div className="course-list">
-            {courses.map((course) => (
+            {filteredCourses.map((course) => (
               <button
                 key={course.id}
                 className={`course-item ${selectedCourseId === course.id ? "selected" : ""}`}
                 onClick={() => setSelectedCourseId(course.id)}
               >
-                <span className="dot" style={{ background: course.color || "#0e6ba8" }} />
+                <span className="dot" style={{ background: course.color || "#22c55e" }} />
                 <div>
                   <h3>{course.title}</h3>
                   <p>{course.code}</p>
@@ -143,6 +199,7 @@ export default function LegacyDashboard() {
                 </div>
               </button>
             ))}
+            {!filteredCourses.length ? <p className="subtitle">No course matches this search.</p> : null}
           </div>
         </aside>
 
@@ -214,6 +271,25 @@ export default function LegacyDashboard() {
                       </a>
                     ))}
                     {!attachments.length ? <p>No attachments available.</p> : null}
+                  </div>
+                </article>
+
+                <article className="card wide-card">
+                  <div className="card-header">
+                    <h3>Recent Activity</h3>
+                    <span>{recentActivity.length} latest</span>
+                  </div>
+                  <div className="activity-list">
+                    {recentActivity.map((item) => (
+                      <div key={item.id} className="activity-item">
+                        <div>
+                          <h4>{item.title}</h4>
+                          <p>{item.body}</p>
+                        </div>
+                        <small>{formatDate(item.createdAt)}</small>
+                      </div>
+                    ))}
+                    {!recentActivity.length ? <p>No recent activity for this course.</p> : null}
                   </div>
                 </article>
               </div>

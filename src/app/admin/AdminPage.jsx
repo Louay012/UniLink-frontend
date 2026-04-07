@@ -85,132 +85,115 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div className="page-shell admin-shell">
+      <header className="hero">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-          <p className="text-sm text-gray-500">Logged in as {user?.email}</p>
+          <p className="tag">UniLink</p>
+          <h1>Administration</h1>
+          <p className="subtitle">Manage accounts, roles, and access across your university platform.</p>
+          <small className="subtitle">Logged in as {user?.email}</small>
         </div>
-        <button
-          onClick={() => { logout(); navigate("/login"); }}
-          className="text-sm text-red-500 hover:text-red-700 font-medium"
-        >
+        <button className="danger-btn" onClick={() => { logout(); navigate("/login"); }}>
           Logout
         </button>
-      </div>
+      </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
-
-        {/* ── Create User Form ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Create New User</h2>
-
-          {formError   && <p className="text-red-500 text-sm mb-3">{formError}</p>}
-          {formSuccess && <p className="text-green-600 text-sm mb-3">{formSuccess}</p>}
-
-          <form onSubmit={handleCreateUser} className="grid grid-cols-2 gap-4">
-            {[
-              { label: "First Name", key: "firstName", type: "text" },
-              { label: "Last Name",  key: "lastName",  type: "text" },
-              { label: "Email",      key: "email",     type: "email" },
-              { label: "Password",   key: "password",  type: "password" },
-            ].map(({ label, key, type }) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                <input
-                  type={type}
-                  value={form[key]}
-                  onChange={(e) => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-                  required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-              >
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full bg-black text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
-              >
-                Create User
-              </button>
-            </div>
-          </form>
+      <section className="card">
+        <div className="card-header">
+          <h3>Create User</h3>
+          <span>Directory management</span>
         </div>
 
-        {/* ── Users Table ── */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            All Users ({users.length})
-          </h2>
+        {formError ? <p className="error-banner">{formError}</p> : null}
+        {formSuccess ? <p className="success-banner">{formSuccess}</p> : null}
 
-          {loading && <p className="text-gray-400 text-sm">Loading users...</p>}
-          {error   && <p className="text-red-500 text-sm">{error}</p>}
+        <form onSubmit={handleCreateUser} className="admin-form-grid">
+          {[
+            { label: "First Name", key: "firstName", type: "text" },
+            { label: "Last Name", key: "lastName", type: "text" },
+            { label: "Email", key: "email", type: "email" },
+            { label: "Password", key: "password", type: "password" }
+          ].map(({ label, key, type }) => (
+            <label key={key}>
+              {label}
+              <input
+                type={type}
+                value={form[key]}
+                onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                required
+              />
+            </label>
+          ))}
 
-          {!loading && !error && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
-                    <th className="pb-3 pr-4">Name</th>
-                    <th className="pb-3 pr-4">Email</th>
-                    <th className="pb-3 pr-4">Role</th>
-                    <th className="pb-3 pr-4">Status</th>
-                    <th className="pb-3">Actions</th>
+          <label>
+            Role
+            <select
+              value={form.role}
+              onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))}
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </label>
+
+          <button className="primary-btn" type="submit">Create User</button>
+        </form>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>User Accounts</h3>
+          <span>{users.length} accounts</span>
+        </div>
+
+        {loading ? <p className="subtitle">Loading users...</p> : null}
+        {error ? <p className="error-banner">{error}</p> : null}
+
+        {!loading && !error ? (
+          <div className="table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.first_name} {u.last_name}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <select
+                        value={u.role || "STUDENT"}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <span className={u.status === "ACTIVE" ? "status-badge active" : "status-badge"}>
+                        {u.status || "ACTIVE"}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="link-danger" onClick={() => handleDelete(u.id)}>
+                        Delete
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50">
-                      <td className="py-3 pr-4 font-medium text-gray-800">
-                        {u.first_name} {u.last_name}
-                      </td>
-                      <td className="py-3 pr-4 text-gray-500">{u.email}</td>
-                      <td className="py-3 pr-4">
-                        <select
-                          value={u.role || "STUDENT"}
-                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                          className="border border-gray-200 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-black"
-                        >
-                          {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          u.status === "ACTIVE"
-                            ? "bg-green-50 text-green-700"
-                            : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {u.status || "ACTIVE"}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          className="text-red-500 hover:text-red-700 text-xs font-medium"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

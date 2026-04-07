@@ -11,7 +11,11 @@ const links = [
 export default function Sidebar() {
   return (
     <aside className="app-sidebar">
-      <h2>UniLink</h2>
+      <div className="sidebar-brand">
+        <p className="sidebar-kicker">University Portal</p>
+        <h2>UniLink</h2>
+        <small>Academic Services</small>
+      </div>
       <nav>
         {links.map((link) => (
           <NavLink
@@ -23,6 +27,9 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <div className="sidebar-footer">
+        <p>Spring Semester 2026</p>
+      </div>
     </aside>
   );
 }

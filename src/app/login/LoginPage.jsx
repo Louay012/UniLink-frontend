@@ -37,53 +37,54 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">UniLink</h1>
-        <p className="text-gray-500 mb-6">Sign in to your account</p>
+    <div className="auth-layout">
+      <section className="auth-hero-panel">
+        <p className="auth-kicker">Welcome to UniLink</p>
+        <h1>Campus Digital Services</h1>
+        <p>
+          Access your courses, messaging hub, class updates, and student resources from one platform.
+        </p>
+        <ul>
+          <li>Course announcements and files</li>
+          <li>Student-teacher messaging</li>
+          <li>Role-based academic workflows</li>
+        </ul>
+      </section>
 
-        {error && (
-          <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 mb-4 text-sm">
-            {error}
-          </div>
-        )}
+      <section className="auth-form-panel">
+        <h2>Sign in</h2>
+        <p>Use your university account to continue.</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
+        {error ? <div className="error-banner">{error}</div> : null}
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <label>
+            Email
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
               placeholder="you@example.com"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+          </label>
+
+          <label>
+            Password
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-              placeholder="••••••••"
+              placeholder="Enter your password"
             />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition disabled:opacity-50"
-          >
-            {loading ? "Signing in..." : "Sign in"}
+          </label>
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Signing in..." : "Sign in to portal"}
           </button>
         </form>
-      </div>
+      </section>
     </div>
   );
 }
