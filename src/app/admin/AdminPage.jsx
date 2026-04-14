@@ -10,8 +10,11 @@ export default function AdminPage() {
   const navigate = useNavigate();
 
   const [users,   setUsers]   = useState([]);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const [error,   setError]   = useState("");
+  const [errorCourses, setErrorCourses] = useState("");
 
   // Form state for creating a new user
   const [form, setForm] = useState({
@@ -30,6 +33,11 @@ export default function AdminPage() {
     fetchUsers();
   }, []);
 
+  // Load all courses when the page opens
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
   async function fetchUsers() {
     try {
       setLoading(true);
@@ -39,6 +47,18 @@ export default function AdminPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchCourses() {
+    try {
+      setLoadingCourses(true);
+      const data = await apiRequest("/admin/courses");
+      setCourses(data);
+    } catch (err) {
+      setErrorCourses(err.message);
+    } finally {
+      setLoadingCourses(false);
     }
   }
 
@@ -64,6 +84,20 @@ export default function AdminPage() {
       setUsers(prev => prev.filter(u => u.id !== userId));
     } catch (err) {
       alert("Failed to delete user: " + err.message);
+    }
+  }
+
+  async function handleAssignCourse(userId, courseId) {
+    if (!courseId) return;
+    try {
+      await apiRequest(`/admin/users/${userId}/courses`, {
+        method: "POST",
+        body: JSON.stringify({ courseId }),
+      });
+      alert("Course assigned successfully!");
+      fetchUsers(); // Refresh to show updated state if necessary
+    } catch (err) {
+      alert("Failed to assign course: " + err.message);
     }
   }
 
@@ -159,6 +193,7 @@ export default function AdminPage() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Status</th>
+                  <th>Assign Course</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -181,6 +216,20 @@ export default function AdminPage() {
                       <span className={u.status === "ACTIVE" ? "status-badge active" : "status-badge"}>
                         {u.status || "ACTIVE"}
                       </span>
+                    </td>
+                    <td>
+                      <select
+                        className="admin-select"
+                        value=""
+                        onChange={(e) => handleAssignCourse(u.id, e.target.value)}
+                      >
+                        <option value="" disabled>Assign course...</option>
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.code} - {c.title}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td>
                       <button className="link-danger" onClick={() => handleDelete(u.id)}>

@@ -1,9 +1,11 @@
 import React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import ChatBox from "../../components/ChatBox";
 import { useAuth } from "../../context/AuthContext";
 import useMessaging from "../../hooks/useMessaging";
+import { useNavigate } from "react-router-dom";
+
 
 function formatDate(value) {
   try {
@@ -56,7 +58,14 @@ function getInitials(value) {
 }
 
 export default function ChatPage() {
-  const { selectedRole, setSelectedRole, roleOptions } = useAuth();
+  const { selectedRole, setSelectedRole, roleOptions, token } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
+  }, [token, navigate]);
   const {
     chats,
     contacts,

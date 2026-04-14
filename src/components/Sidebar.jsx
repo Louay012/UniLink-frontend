@@ -2,7 +2,6 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 
 const links = [
-  { to: "/login", label: "Login" },
   { to: "/dashboard", label: "Dashboard" },
   { to: "/chat", label: "Chat" },
   { to: "/groups", label: "Groups" }

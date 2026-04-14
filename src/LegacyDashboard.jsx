@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "./context/AuthContext";
 import { apiRequest } from "./services/api";
+import { useNavigate } from "react-router-dom";
 
 function formatDate(value) {
   try {
@@ -13,8 +14,15 @@ function formatDate(value) {
 }
 
 export default function LegacyDashboard() {
-  const { selectedRole, setSelectedRole, roleOptions } = useAuth();
+  const { selectedRole, setSelectedRole, roleOptions, user, logout, isAdmin, token } = useAuth();
+  const navigate = useNavigate();
 
+  useEffect(() => {
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
+  }, [token, navigate]);
+  
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
@@ -153,6 +161,9 @@ export default function LegacyDashboard() {
               {role.label}
             </button>
           ))}
+          <button className="danger-btn" onClick={() => { logout(); navigate("/login"); }}>
+            Logout
+          </button>
         </div>
       </header>
 

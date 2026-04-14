@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../services/api";
+import { useNavigate } from "react-router-dom";
+
 
 function formatDate(value) {
   if (!value) {
@@ -16,7 +18,14 @@ function formatDate(value) {
 }
 
 export default function GroupsPage() {
-  const { selectedRole, setSelectedRole, roleOptions } = useAuth();
+  const { selectedRole, setSelectedRole, roleOptions, token } = useAuth();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!token) {
+      navigate("/login", { replace: true });
+    }
+  }, [token, navigate]);
 
   const [groups, setGroups] = useState([]);
   const [contacts, setContacts] = useState([]);
