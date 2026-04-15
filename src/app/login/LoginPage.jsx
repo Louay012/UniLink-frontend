@@ -23,12 +23,8 @@ export default function LoginPage() {
       });
       // Save the user and token
       login(data.user, data.token);
-      // Admins go to admin panel, everyone else goes to dashboard
-      if (data.user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
+      
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {
