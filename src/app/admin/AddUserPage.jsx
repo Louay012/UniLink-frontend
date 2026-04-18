@@ -60,9 +60,7 @@ const AddUserPage = () => {
           <p className="subtitle">Create new accounts for students, teachers, or administrators.</p>
           <small className="subtitle">Logged in as {user?.email}</small>
         </div>
-        <button className="danger-btn" onClick={() => { logout(); navigateTo("/login"); }}>
-          Logout
-        </button>
+        
       </header>
 
       <section className="card">

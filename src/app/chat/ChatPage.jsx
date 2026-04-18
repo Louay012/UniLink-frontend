@@ -2,6 +2,7 @@ import React from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import ChatBox from "../../components/ChatBox";
+import { Users } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import useMessaging from "../../hooks/useMessaging";
 import { useNavigate } from "react-router-dom";
@@ -86,6 +87,7 @@ export default function ChatPage() {
     setError
   } = useMessaging(selectedRole);
   const [chatView, setChatView] = useState("DIRECT");
+  const [showMembers, setShowMembers] = useState(false);
 
   const directChats = useMemo(
     () => chats.filter((chat) => chat.chatType === "DIRECT"),
@@ -150,17 +152,7 @@ export default function ChatPage() {
           <h1>Messaging Hub</h1>
           <p className="subtitle">Direct and course conversations, separated from dashboard logic.</p>
         </div>
-        <div className="role-switch">
-          {roleOptions.map((role) => (
-            <button
-              key={role.value}
-              className={selectedRole.value === role.value ? "active" : ""}
-              onClick={() => setSelectedRole(role)}
-            >
-              {role.label}
-            </button>
-          ))}
-        </div>
+        {/* role-switch removed: use sidebar to change role */}
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
@@ -229,18 +221,22 @@ export default function ChatPage() {
             ) : (
               <>
                 <div className="conversation-header">
-                  <span className="conversation-avatar">{getInitials(selectedChat.title)}</span>
-                  <div>
-                    <h4>{selectedChat.title}</h4>
-                    <small>
-                      {isSelectedChatDirect
-                        ? "Private conversation"
-                        : selectedChat.members.map((member) => member.name).join(" . ")}
-                    </small>
+                  <div className="conversation-meta">
+                    <span className="conversation-avatar">{getInitials(selectedChat.title)}</span>
+                    <div>
+                      <h4>{selectedChat.title}</h4>
+                      <small className="conversation-sub">{isSelectedChatDirect ? "Private conversation" : selectedChat.members.map((member) => member.name).join(" · ")}</small>
+                    </div>
                   </div>
-                  <span className={`chat-pill ${isSelectedChatDirect ? "direct" : "channel"}`}>
-                    {isSelectedChatDirect ? "Direct" : "Channel"}
-                  </span>
+
+                  <div className="conversation-actions">
+                    <span className={`chat-pill ${isSelectedChatDirect ? "direct" : "channel"}`}>
+                      {isSelectedChatDirect ? "Direct" : "Channel"}
+                    </span>
+                    <button className="members-toggle" onClick={() => setShowMembers((s) => !s)} aria-pressed={showMembers}>
+                      <Users size={14} /> <span>Members</span>
+                    </button>
+                  </div>
                 </div>
 
                 <ChatBox
@@ -261,6 +257,30 @@ export default function ChatPage() {
               </>
             )}
           </section>
+
+          <aside className={`members-pane ${showMembers ? 'open' : ''}`}>
+            {selectedChat ? (
+              <>
+                <div className="members-header">
+                  <h4>Members</h4>
+                  <small>{selectedChat.members?.length || 0}</small>
+                </div>
+                <div className="members-list">
+                  {selectedChat.members?.map((m) => (
+                    <div key={m.id} className="member-item">
+                      <span className="member-avatar">{getInitials(m.name)}</span>
+                      <div className="member-meta">
+                        <div className="member-name">{m.name}</div>
+                        <div className="member-role">{m.role || 'Member'}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="subtitle">Select a chat to view members.</p>
+            )}
+          </aside>
         </div>
       </article>
     </div>

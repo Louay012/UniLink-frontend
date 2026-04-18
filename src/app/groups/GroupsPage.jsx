@@ -74,7 +74,14 @@ export default function GroupsPage() {
           return;
         }
 
-        setGroups(groupsPayload.items || []);
+        const rawGroups = groupsPayload.items || [];
+        const normalized = rawGroups.map((g) => ({
+          ...g,
+          chatType: String(g.chat_type || g.chatType || "").toUpperCase(),
+          title: g.title || g.name || "",
+          messageCount: Number(g.messageCount ?? g.message_count ?? 0),
+        }));
+        setGroups(normalized);
         setContacts(contactsPayload.items || []);
       } catch (e) {
         if (active) {
@@ -104,17 +111,7 @@ export default function GroupsPage() {
             Discover class rooms, course channels, and direct discussion spaces for your academic work.
           </p>
         </div>
-        <div className="role-switch">
-          {roleOptions.map((role) => (
-            <button
-              key={role.value}
-              className={selectedRole.value === role.value ? "active" : ""}
-              onClick={() => setSelectedRole(role)}
-            >
-              {role.label}
-            </button>
-          ))}
-        </div>
+        {/* role-switch removed: use sidebar to change role */}
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}

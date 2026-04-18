@@ -151,9 +151,7 @@ export default function TeacherDashboard() {
             Manage your courses, announcements, and course materials.
           </p>
         </div>
-        <button className="danger-btn" onClick={() => { logout(); navigate("/login"); }}>
-          Logout
-        </button>
+        
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}

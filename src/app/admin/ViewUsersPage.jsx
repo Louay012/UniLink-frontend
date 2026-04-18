@@ -50,9 +50,7 @@ const ViewUsersPage = () => {
           <p className="subtitle">Browse and manage all users in the system.</p>
           <small className="subtitle">Logged in as {user?.email}</small>
         </div>
-        <button className="danger-btn" onClick={() => { logout(); navigateTo("/login"); }}>
-          Logout
-        </button>
+        
       </header>
 
       <section className="card">

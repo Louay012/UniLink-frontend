@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import {
   Menu,
   X,
@@ -19,6 +20,7 @@ import { COURSES, MOCK_USER } from './mockData';
 export default function Sidebar({ basePath = '' }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
   const [isCoursesExpanded, setIsCoursesExpanded] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -66,7 +68,7 @@ export default function Sidebar({ basePath = '' }) {
 
       {/* Sidebar */}
       <div
-        className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 z-40 ${
+        className={`fixed left-0 top-0 h-screen flex flex-col bg-gradient-to-b from-slate-900 to-slate-800 text-white transition-all duration-300 z-40 ${
           isOpen ? 'w-64' : 'w-20'
         } ${!isMobile && 'md:fixed md:w-64'}`}
       >
@@ -197,27 +199,35 @@ export default function Sidebar({ basePath = '' }) {
           </>
         )}
 
-        {/* Settings Menu at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-slate-700 bg-slate-900">
+        {/* Settings Menu */}
+        <div className={`p-3 border-t border-slate-700 bg-slate-900 mt-auto ${!isOpen ? 'px-2' : ''}`}>
           <div className="space-y-1">
-            {settingsItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(withBase(item.path))}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                    isActive(item.path)
-                      ? 'bg-primary text-white'
-                      : 'text-slate-300 hover:bg-slate-700'
-                  } ${!isOpen && 'justify-center'}`}
-                  title={!isOpen ? item.label : ''}
-                >
-                  <Icon size={20} />
-                  {isOpen && <span>{item.label}</span>}
-                </button>
-              );
-            })}
+              {settingsItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => {
+                      if (item.label === 'Logout') {
+                        logout();
+                        navigate('/login');
+                        return;
+                      }
+                      navigate(withBase(item.path));
+                      if (isMobile) setIsOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                      isActive(item.path)
+                        ? 'bg-primary text-white'
+                        : 'text-slate-300 hover:bg-slate-700'
+                    } ${!isOpen && 'justify-center'} ${item.label === 'Logout' ? 'sidebar-logout' : ''}`}
+                    title={!isOpen ? item.label : ''}
+                  >
+                    <Icon size={20} />
+                    {isOpen && <span>{item.label}</span>}
+                  </button>
+                );
+              })}
           </div>
         </div>
       </div>

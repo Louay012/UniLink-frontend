@@ -151,20 +151,7 @@ export default function LegacyDashboard() {
             Course workspace with announcements and attachments. Messaging now lives in the dedicated Chat page.
           </p>
         </div>
-        <div className="role-switch">
-          {roleOptions.map((role) => (
-            <button
-              key={role.value}
-              className={selectedRole.value === role.value ? "active" : ""}
-              onClick={() => setSelectedRole(role)}
-            >
-              {role.label}
-            </button>
-          ))}
-          <button className="danger-btn" onClick={() => { logout(); navigate("/login"); }}>
-            Logout
-          </button>
-        </div>
+        {/* role-switch removed: use sidebar to change role */}
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}

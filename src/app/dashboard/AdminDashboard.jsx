@@ -127,9 +127,7 @@ export default function AdminDashboard() {
           <p className="subtitle">Manage accounts, roles, and access across your university platform.</p>
           <small className="subtitle">Logged in as {user?.email}</small>
         </div>
-        <button className="danger-btn" onClick={() => { logout(); navigate("/login"); }}>
-          Logout
-        </button>
+        
       </header>
 
       <section className="card">

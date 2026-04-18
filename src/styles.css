@@ -51,6 +51,118 @@ p {
   grid-template-columns: 290px 1fr;
 }
 
+/* Collapsed sidebar state: show icons only and shrink grid column */
+body.sidebar-collapsed .app-shell {
+  grid-template-columns: 72px 1fr;
+}
+
+body.sidebar-collapsed .app-sidebar {
+  padding: 1rem 0.6rem;
+}
+
+body.sidebar-collapsed .sidebar-brand .brand-text,
+body.sidebar-collapsed .sidebar-brand .sidebar-kicker,
+body.sidebar-collapsed .sidebar-brand small {
+  display: none;
+}
+
+/* Center icons when collapsed */
+body.sidebar-collapsed .app-sidebar nav {
+  align-items: center;
+}
+
+body.sidebar-collapsed .app-nav-link {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+body.sidebar-collapsed .app-nav-link .nav-label {
+  display: none;
+}
+
+body.sidebar-collapsed .sidebar-footer {
+  display: none;
+}
+
+.app-nav-link {
+  display: flex;
+  align-items: center;
+}
+
+.app-nav-link .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  margin-right: 0.6rem;
+}
+
+.app-nav-link .nav-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Logo styling used for the collapse/expand nav link */
+.nav-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(120deg, #4ade80, #22c55e);
+  color: #052e16;
+}
+
+.collapse-toggle-nav .nav-logo {
+  background: transparent;
+  color: inherit;
+}
+
+/* When collapsed, keep logo visible and center it */
+body.sidebar-collapsed .collapse-toggle-nav .nav-logo {
+  margin: 0 auto;
+}
+
+.collapse-toggle-nav {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+
+/* When collapsed, hide the label and center the icon */
+body.sidebar-collapsed .collapse-toggle-nav .nav-label {
+  display: none;
+}
+
+body.sidebar-collapsed .collapse-toggle-nav {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* Ensure collapse nav icon shows and doesn't offset when centered */
+.collapse-toggle-nav .nav-icon {
+  margin-right: 0.6rem;
+}
+
+body.sidebar-collapsed .collapse-toggle-nav .nav-icon {
+  margin-right: 0;
+}
+
+.collapse-toggle-nav:hover {
+  transform: translateX(3px);
+}
+
 .app-sidebar {
   padding: 1.3rem 1rem;
   border-right: 1px solid var(--border);
@@ -61,6 +173,16 @@ p {
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 1.2rem;
+  /* Keep the sidebar constrained to the viewport height and scroll internally
+     so long pages don't make the sidebar grow beyond the screen. Use sticky
+     so it remains in the document flow and doesn't cause layout shifts. */
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .sidebar-brand {
@@ -95,11 +217,20 @@ p {
   align-content: start;
 }
 
+.app-sidebar nav {
+  width: 100%;
+}
+
 .app-nav-link {
   color: #e2e8f0;
   text-decoration: none;
   border-radius: 12px;
   padding: 0.72rem 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
@@ -131,6 +262,136 @@ p {
 .app-content {
   min-width: 0;
   animation: rise-in 0.45s ease;
+}
+/* mobile layout rules are handled by component classes; keep global layout simple */
+
+@media (max-width: 768px) {
+  /* On small screens the sidebar should behave normally (not sticky) */
+  .app-sidebar {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+}
+
+/* Mobile bottom navigation (shown when JS sets `isMobile`) */
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  /* Ensure page content has space for the fixed bottom nav */
+  .page-shell {
+    padding-bottom: 76px;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 6px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 24px rgba(2,6,23,0.06);
+    z-index: 70;
+  }
+
+  .mobile-bottom-nav .mobile-nav-link {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 700;
+    padding: 6px 8px;
+    min-width: 56px;
+    border-radius: 10px;
+  }
+
+  .mobile-bottom-nav .mobile-nav-link .nav-icon {
+    margin: 0;
+    color: inherit;
+  }
+
+  .mobile-bottom-nav .mobile-nav-link .nav-label {
+    font-size: 0.66rem;
+    line-height: 1;
+    color: inherit;
+  }
+
+  .mobile-bottom-nav .mobile-nav-link.active {
+    color: #052e16;
+    background: linear-gradient(120deg, #e6f9ec, #d1f7d7);
+  }
+
+  /* Hide the desktop sidebar on small screens - component also applies style inline */
+  .app-sidebar {
+    display: none;
+  }
+}
+
+/* JS-controlled body class for mobile view to ensure mobile layout is always applied */
+.mobile-view .app-shell {
+  grid-template-columns: 1fr !important;
+}
+.mobile-view .app-sidebar {
+  display: none !important;
+}
+.mobile-view .layout,
+.mobile-view .messaging-layout {
+  grid-template-columns: 1fr !important;
+}
+.mobile-view .page-shell {
+  padding-bottom: 76px !important;
+}
+
+/* When the sidebar is shown as a mobile drawer, make it an overlay */
+.app-sidebar.mobile-drawer {
+  position: fixed;
+  z-index: 90;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  bottom: 84px; /* leave space for bottom nav */
+  height: calc(100vh - 108px);
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(2,6,23,0.16);
+  overflow: auto;
+  background: linear-gradient(180deg, #0b1220 0%, #1e293b 100%);
+}
+
+/* Sidebar logout button styles - match site accent palette */
+.sidebar-logout {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.62rem 0.72rem;
+  border-radius: 12px;
+  font-weight: 700;
+  background: linear-gradient(120deg, #4ade80, var(--accent));
+  color: #052e16;
+  border: 1px solid rgba(2,6,23,0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.sidebar-logout:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(2,6,23,0.12);
+  opacity: 0.98;
+}
+
+.sidebar-logout svg {
+  opacity: 0.95;
 }
 
 .page-shell {
@@ -475,12 +736,17 @@ p {
 
 .messaging-layout {
   display: grid;
-  grid-template-columns: 290px 1fr;
-  gap: 0.7rem;
+  grid-template-columns: 300px 1fr 260px;
+  gap: 0.9rem;
+  flex: 1 1 auto;
 }
 
 .messenger-card {
   padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  /* make the messenger card tall so conversation area can stretch */
+  min-height: calc(100vh - 180px);
 }
 
 .chat-list-pane {
@@ -694,18 +960,50 @@ p {
   font-size: 0.76rem;
 }
 
+/* Conversation layout and header actions */
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  gap: 0.6rem;
+}
+
+.conversation-meta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.conversation-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.members-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Main message feed styled like a modern chat pane */
 .message-feed {
-  margin: 0.52rem 0;
-  padding: 0.55rem;
+  margin: 0.6rem 0;
+  padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background:
-    radial-gradient(circle at 8% 5%, rgba(34, 197, 94, 0.14), transparent 42%),
-    #f3faf4;
-  display: grid;
-  gap: 0.28rem;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   align-content: start;
-  max-height: 430px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -804,6 +1102,51 @@ p {
   border-radius: 999px;
   padding: 0.52rem 0.92rem;
   min-width: 74px;
+}
+
+/* Members pane (right column) */
+.members-pane {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: var(--surface);
+  overflow: auto;
+}
+
+.members-pane .members-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.member-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.45rem 0.2rem;
+  border-bottom: 1px dashed #eef3f6;
+}
+
+.member-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(140deg, #0f172a, #334155);
+  color: #fff;
+  font-weight: 800;
+}
+
+.member-meta .member-name {
+  font-weight: 700;
+}
+
+.member-meta .member-role {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .error-banner,
@@ -1017,7 +1360,23 @@ p {
     padding: 1rem;
   }
 
+  /* Mobile toggle removed — mobile nav handled by bottom nav */
+
   .hero {
     flex-direction: column;
+  }
+
+  /* Messaging adjustments for smaller screens */
+  .message-feed {
+    max-height: 50vh;
+  }
+
+  .message-item {
+    max-width: min(85%, 470px);
+  }
+
+  /* hide members pane on small screens */
+  .members-pane {
+    display: none;
   }
 }
