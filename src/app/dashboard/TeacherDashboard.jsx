@@ -1,8 +1,6 @@
-import React from "react";
-import { useEffect, useMemo, useState } from "react";
-
-import { useAuth } from "./context/AuthContext";
-import { apiRequest } from "./services/api";
+import React, { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { apiRequest } from "../../services/api";
 import { useNavigate } from "react-router-dom";
 
 function formatDate(value) {
@@ -13,8 +11,8 @@ function formatDate(value) {
   }
 }
 
-export default function LegacyDashboard() {
-  const { selectedRole, setSelectedRole, roleOptions, user, logout, isAdmin, token } = useAuth();
+export default function TeacherDashboard() {
+  const { user, logout, token } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,7 +20,7 @@ export default function LegacyDashboard() {
       navigate("/login", { replace: true });
     }
   }, [token, navigate]);
-  
+
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
@@ -61,12 +59,12 @@ export default function LegacyDashboard() {
     );
 
     return [
-      { label: "Courses", value: courses.length },
-      { label: "Announcements", value: totalAnnouncements },
-      { label: "Attachments", value: totalAttachments },
-      { label: "Active Role", value: selectedRole.label }
+      { label: "My Courses", value: courses.length },
+      { label: "Total Announcements", value: totalAnnouncements },
+      { label: "Total Attachments", value: totalAttachments },
+      { label: "Teacher", value: "Active" }
     ];
-  }, [courses, selectedRole.label]);
+  }, [courses]);
 
   const recentActivity = useMemo(() => {
     return announcements
@@ -80,11 +78,12 @@ export default function LegacyDashboard() {
     setError("");
 
     try {
-      const payload = await apiRequest("/courses", selectedRole);
+      // For teachers, we use the TEACHER role to fetch their assigned courses
+      const payload = await apiRequest("/courses", { value: "TEACHER", label: "Teacher" });
       setCourses(payload.items || []);
       setSelectedCourseId((prev) => prev || payload.items?.[0]?.id || null);
     } catch {
-      setError("Could not load courses. Please make sure backend is running.");
+      setError("Could not load your courses. Please make sure backend is running.");
     } finally {
       setIsLoading(false);
     }
@@ -99,8 +98,8 @@ export default function LegacyDashboard() {
 
     try {
       const [announcementsPayload, attachmentsPayload] = await Promise.all([
-        apiRequest(`/courses/${courseId}/announcements`, selectedRole),
-        apiRequest(`/courses/${courseId}/attachments`, selectedRole)
+        apiRequest(`/courses/${courseId}/announcements`, { value: "TEACHER", label: "Teacher" }),
+        apiRequest(`/courses/${courseId}/attachments`, { value: "TEACHER", label: "Teacher" })
       ]);
 
       setAnnouncements(announcementsPayload.items || []);
@@ -117,7 +116,7 @@ export default function LegacyDashboard() {
     }
 
     try {
-      await apiRequest(`/courses/${selectedCourse.id}/announcements`, selectedRole, {
+      await apiRequest(`/courses/${selectedCourse.id}/announcements`, { value: "TEACHER", label: "Teacher" }, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -131,27 +130,28 @@ export default function LegacyDashboard() {
     } catch (e) {
       setError(e.message || "Failed to publish announcement.");
     }
+
   }
 
   useEffect(() => {
     fetchCourses();
-  }, [selectedRole.value]);
+  }, []);
 
   useEffect(() => {
     fetchCourseDetails(selectedCourseId);
-  }, [selectedCourseId, selectedRole.value]);
+  }, [selectedCourseId]);
 
   return (
     <div className="page-shell">
       <header className="hero">
         <div>
           <p className="tag">UniLink</p>
-          <h1>Courses Hub</h1>
+          <h1>Teacher Dashboard</h1>
           <p className="subtitle">
-            Course workspace with announcements and attachments. Messaging now lives in the dedicated Chat page.
+            Manage your courses, announcements, and course materials.
           </p>
         </div>
-        {/* role-switch removed: use sidebar to change role */}
+        
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
@@ -175,7 +175,7 @@ export default function LegacyDashboard() {
           <input
             className="course-search"
             type="text"
-            placeholder="Search by title, code, or teacher"
+            placeholder="Search by title or code"
             value={courseQuery}
             onChange={(event) => setCourseQuery(event.target.value)}
           />
@@ -211,7 +211,7 @@ export default function LegacyDashboard() {
                   <h2>{selectedCourse.title}</h2>
                   <p>{selectedCourse.description}</p>
                   <small>
-                    Class: {selectedCourse.classGroupCode} . Semester: {selectedCourse.semester} . Teacher: {selectedCourse.teacher?.name}
+                    Class: {selectedCourse.classGroupCode} . Semester: {selectedCourse.semester}
                   </small>
                 </div>
               </div>
@@ -223,23 +223,21 @@ export default function LegacyDashboard() {
                     <span>{announcements.length}</span>
                   </div>
 
-                  {selectedRole.value === "TEACHER" ? (
-                    <form className="announce-form" onSubmit={handlePublish}>
-                      <input
-                        type="text"
-                        value={title}
-                        placeholder="Announcement title"
-                        onChange={(e) => setTitle(e.target.value)}
-                      />
-                      <textarea
-                        rows={3}
-                        value={body}
-                        placeholder="Write a clear course update..."
-                        onChange={(e) => setBody(e.target.value)}
-                      />
-                      <button type="submit">Publish</button>
-                    </form>
-                  ) : null}
+                  <form className="announce-form" onSubmit={handlePublish}>
+                    <input
+                      type="text"
+                      value={title}
+                      placeholder="Announcement title"
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                    <textarea
+                      rows={3}
+                      value={body}
+                      placeholder="Write a clear course update..."
+                      onChange={(e) => setBody(e.target.value)}
+                    />
+                    <button type="submit">Publish</button>
+                  </form>
 
                   <div className="feed">
                     {announcements.map((item) => (
