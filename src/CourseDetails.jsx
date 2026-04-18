@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Lock, Play, Download, Send } from 'lucide-react';
 import { COURSES, ANNOUNCEMENTS, LESSONS, CHAT_MESSAGES, formatDate } from './mockData';
+import ProgressBar from './mywork/components/ProgressBar';
+import AttachmentPreview from './mywork/components/AttachmentPreview';
+import AnnouncementCard from './mywork/components/AnnouncementCard';
+import { getCourseCompletion, sortAnnouncementsByPriorityThenDate } from './mywork/helpers';
 
 export default function CourseDetails({ basePath = '' }) {
   const { id } = useParams();
@@ -11,13 +15,31 @@ export default function CourseDetails({ basePath = '' }) {
   const [expandedWeeks, setExpandedWeeks] = useState({});
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState(CHAT_MESSAGES[id] || []);
+  const [completedLessons, setCompletedLessons] = useState(() => new Set());
 
   const course = COURSES.find((c) => c.id === id);
   const courseAnnouncements = ANNOUNCEMENTS[id] || [];
   const courseLessons = LESSONS[id] || [];
+  const sortedAnnouncements = sortAnnouncementsByPriorityThenDate(courseAnnouncements).map((item) => ({
+    ...item,
+    visualType: item.badge === 'URGENT' ? 'URGENT' : item.id === 'a-1' || item.id === 'a-8' ? 'PINNED' : 'NORMAL',
+    author: course?.teacher?.name || 'Teacher'
+  }));
+
+  const flattenedLessonItems = courseLessons.flatMap((week) => week.items);
+  const completionMeta = getCourseCompletion(id);
+  const totalLessons = completionMeta.total || flattenedLessonItems.length;
+  const completedCount = completedLessons.size;
+  const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, [id]);
+
+  useEffect(() => {
+    const initialCount = Math.min(completionMeta.completed, flattenedLessonItems.length);
+    const defaults = new Set(flattenedLessonItems.slice(0, initialCount).map((item) => item.id));
+    setCompletedLessons(defaults);
   }, [id]);
 
   if (!course) {
@@ -55,6 +77,18 @@ export default function CourseDetails({ basePath = '' }) {
       setMessages([...messages, newMessage]);
       setChatInput('');
     }
+  };
+
+  const toggleLessonCompletion = (lessonId) => {
+    setCompletedLessons((previous) => {
+      const next = new Set(previous);
+      if (next.has(lessonId)) {
+        next.delete(lessonId);
+      } else {
+        next.add(lessonId);
+      }
+      return next;
+    });
   };
 
   return (
@@ -112,58 +146,23 @@ export default function CourseDetails({ basePath = '' }) {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-semibold text-slate-900">Course Progress</h2>
+            <span className="text-sm font-semibold text-primary">{progressPercent}%</span>
+          </div>
+          <ProgressBar
+            percent={progressPercent}
+            label={`${completedCount} / ${totalLessons} lessons completed`}
+          />
+        </div>
+
         {/* ANNOUNCEMENTS TAB */}
         {activeTab === 'announcements' && (
           <div className="space-y-4">
-            {courseAnnouncements.length > 0 ? (
-              courseAnnouncements.map((announcement) => (
-                <div
-                  key={announcement.id}
-                  className="bg-white rounded-lg shadow border border-slate-200 p-6 hover:shadow-md transition-all"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          {announcement.title}
-                        </h3>
-                        {announcement.badge && (
-                          <span
-                            className={`text-xs font-bold px-2 py-1 rounded-full ${
-                              announcement.badge === 'URGENT'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-blue-100 text-blue-700'
-                            }`}
-                          >
-                            {announcement.badge}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-slate-700 mt-2">{announcement.content}</p>
-                      <p className="text-sm text-slate-500 mt-3">
-                        📅 {formatDate(announcement.timestamp)}
-                      </p>
-
-                      {/* Attachments */}
-                      {announcement.attachments.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                          <p className="text-sm font-semibold text-slate-700">Attachments:</p>
-                          {announcement.attachments.map((att) => (
-                            <a
-                              key={att.id}
-                              href="#"
-                              className="flex items-center gap-2 text-primary hover:text-opacity-80 text-sm"
-                            >
-                              <FileText size={16} />
-                              <span>{att.name}</span>
-                              <span className="text-slate-400">({att.size})</span>
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+            {sortedAnnouncements.length > 0 ? (
+              sortedAnnouncements.map((announcement) => (
+                <AnnouncementCard key={announcement.id} announcement={announcement} />
               ))
             ) : (
               <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
@@ -202,9 +201,8 @@ export default function CourseDetails({ basePath = '' }) {
                     <div className="border-t border-slate-200 px-6 py-4 bg-slate-50">
                       <div className="space-y-2">
                         {lesson.items.map((item) => (
-                          <a
+                          <div
                             key={item.id}
-                            href="#"
                             className="flex items-center gap-3 p-3 rounded-lg hover:bg-white transition-colors border border-transparent hover:border-slate-300"
                           >
                             {item.type === 'video' ? (
@@ -218,13 +216,21 @@ export default function CourseDetails({ basePath = '' }) {
                             )}
                             <div className="flex-1">
                               <p className="font-medium text-slate-900">{item.name}</p>
-                              <p className="text-xs text-slate-500">{item.size}</p>
+                              <p className="text-xs text-slate-500 capitalize">{item.type} • {item.size}</p>
+                              <div className="mt-1">
+                                <AttachmentPreview attachment={item} />
+                              </div>
                             </div>
-                            <Download
-                              size={18}
-                              className="text-slate-400 hover:text-primary transition-colors"
-                            />
-                          </a>
+                            <label className="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={completedLessons.has(item.id)}
+                                onChange={() => toggleLessonCompletion(item.id)}
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                              />
+                              Mark as completed
+                            </label>
+                          </div>
                         ))}
                       </div>
                     </div>

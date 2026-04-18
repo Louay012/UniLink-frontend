@@ -3,6 +3,7 @@ import Sidebar from "./Sidebar";
 import Dashboard from "./Dashboard";
 import CoursesPage from "./CoursesPage";
 import CourseDetails from "./CourseDetails";
+import AnnouncementsPage from "./AnnouncementsPage";
 
 function PlaceholderPage({ title }) {
   return (
@@ -27,7 +28,7 @@ export default function MyWorkApp() {
           <Route path="/" element={<Dashboard basePath={basePath} />} />
           <Route path="/courses" element={<CoursesPage basePath={basePath} />} />
           <Route path="/courses/:id" element={<CourseDetails basePath={basePath} />} />
-          <Route path="/announcements" element={<PlaceholderPage title="Announcements" />} />
+          <Route path="/announcements" element={<AnnouncementsPage basePath={basePath} />} />
           <Route path="/messages" element={<PlaceholderPage title="Messages" />} />
           <Route path="*" element={<Navigate to="/my-work" replace />} />
         </Routes>

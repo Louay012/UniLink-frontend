@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Users, FileText } from 'lucide-react';
-import { formatDate } from './mockData';
+import ProgressBar from './mywork/components/ProgressBar';
 
-export default function CourseCard({ course, basePath = '' }) {
+export default function CourseCard({ course, basePath = '', compact = false }) {
   const navigate = useNavigate();
   const withBase = (path) => `${basePath}${path}`;
 
@@ -19,10 +19,19 @@ export default function CourseCard({ course, basePath = '' }) {
 
       {/* Content */}
       <div className="p-5">
+        {compact ? null : (
+          <div className="mb-3 flex items-center justify-between">
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+              {course.code}
+            </span>
+            <span className="text-xs font-medium text-slate-500">Tap to open</span>
+          </div>
+        )}
+
         {/* Course Code */}
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-          {course.code}
-        </p>
+        {compact ? (
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{course.code}</p>
+        ) : null}
 
         {/* Title */}
         <h3 className="text-lg font-bold text-slate-900 mt-2 group-hover:text-primary transition-colors">
@@ -36,9 +45,29 @@ export default function CourseCard({ course, basePath = '' }) {
         </div>
 
         {/* Description */}
-        <p className="text-sm text-slate-600 mt-3 line-clamp-2">
+        <p className={`text-sm text-slate-600 mt-3 ${compact ? 'line-clamp-1' : 'line-clamp-2'}`}>
           {course.description}
         </p>
+
+        {/* Last Activity */}
+        <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2 border border-slate-100">
+          <p className="text-xs text-slate-500">Last Activity</p>
+          <p className="text-sm font-medium text-slate-800 mt-0.5">
+            {course.lastActivityLabel} • {course.lastActivityTime}
+          </p>
+        </div>
+
+        {/* Progress */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+            <span className="font-medium">Progress</span>
+            <span>{course.progressPercent}%</span>
+          </div>
+          <ProgressBar
+            percent={course.progressPercent}
+            label={`${course.completedLessons} / ${course.totalLessons} lessons completed`}
+          />
+        </div>
 
         {/* Footer with badges */}
         <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
@@ -46,7 +75,7 @@ export default function CourseCard({ course, basePath = '' }) {
           {course.newAnnouncements > 0 && (
             <div className="flex items-center gap-1">
               <span className="inline-block bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full">
-                {course.newAnnouncements} NEW
+                {course.newAnnouncements} new
               </span>
             </div>
           )}
