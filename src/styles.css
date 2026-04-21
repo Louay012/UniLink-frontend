@@ -48,16 +48,17 @@ p {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 290px 1fr;
+  grid-template-columns: 304px 1fr;
+  transition: grid-template-columns 280ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Collapsed sidebar state: show icons only and shrink grid column */
 body.sidebar-collapsed .app-shell {
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 120px 1fr;
 }
 
 body.sidebar-collapsed .app-sidebar {
-  padding: 1rem 0.6rem;
+  padding: 1rem 0.7rem;
 }
 
 body.sidebar-collapsed .sidebar-brand .brand-text,
@@ -73,15 +74,12 @@ body.sidebar-collapsed .app-sidebar nav {
 
 body.sidebar-collapsed .app-nav-link {
   justify-content: center;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+  overflow: visible;
 }
 
 body.sidebar-collapsed .app-nav-link .nav-label {
-  display: none;
-}
-
-body.sidebar-collapsed .sidebar-footer {
   display: none;
 }
 
@@ -183,6 +181,24 @@ body.sidebar-collapsed .collapse-toggle-nav .nav-icon {
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
+  width: 100%;
+  transition: padding 280ms cubic-bezier(0.4, 0, 0.2, 1),
+              width 280ms cubic-bezier(0.4, 0, 0.2, 1),
+              transform 280ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 220ms ease;
+}
+
+.sidebar-top {
+  display: grid;
+  gap: 1rem;
+}
+
+.sidebar-profile {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  min-height: 68px;
 }
 
 .sidebar-brand {
@@ -235,6 +251,7 @@ body.sidebar-collapsed .collapse-toggle-nav .nav-icon {
   background: rgba(255, 255, 255, 0.05);
   font-weight: 600;
   transition: transform 0.2s ease, background 0.2s ease;
+  will-change: transform, opacity;
 }
 
 .app-nav-link:hover {
@@ -253,6 +270,20 @@ body.sidebar-collapsed .collapse-toggle-nav .nav-icon {
   color: #cbd5e1;
   border-top: 1px solid rgba(255, 255, 255, 0.16);
   padding-top: 0.8rem;
+}
+
+body.sidebar-collapsed .sidebar-footer {
+  font-size: 0;
+}
+
+body.sidebar-collapsed .sidebar-footer p {
+  display: none;
+}
+
+body.sidebar-collapsed .sidebar-footer .sidebar-logout {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 
 .sidebar-footer p {
@@ -392,6 +423,12 @@ body.sidebar-collapsed .collapse-toggle-nav .nav-icon {
 
 .sidebar-logout svg {
   opacity: 0.95;
+}
+
+.view-all-link.active {
+  background: rgba(255, 255, 255, 0.05);
+  color: #38bdf8;
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .page-shell {

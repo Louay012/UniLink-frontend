@@ -8,6 +8,8 @@ import DashboardPage from "./app/dashboard/DashboardPage";
 import ChatPage from "./app/chat/ChatPage";
 import GroupsPage from "./app/groups/GroupsPage";
 import MyWorkApp from "./MyWorkApp";
+import CoursesPage from "./CoursesPage";
+import CourseDetails from "./CourseDetails";
 import AdminPage from "./app/admin/AdminPage";
 import AddUserPage from "./app/admin/AddUserPage";
 import ViewUsersPage from "./app/admin/ViewUsersPage";
@@ -23,6 +25,8 @@ function AppRoutes() {
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/chat" element={<ChatPage />} />
       <Route path="/groups" element={<GroupsPage />} />
+      <Route path="/courses" element={<CoursesPage />} />
+      <Route path="/courses/:id" element={<CourseDetails />} />
       <Route path="/admin/add-user" element={<AddUserPage />} />
       <Route path="/admin/view-users" element={<ViewUsersPage />} />
       <Route path="/admin/assign-courses" element={<AssignCoursesPage />} />

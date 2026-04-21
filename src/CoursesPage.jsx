@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import CourseCard from './CourseCard';
 import { ANNOUNCEMENTS, COURSES, LESSONS } from './mockData';
-import { buildCourseActivity, getCourseCompletion, isCourseRecentlyActive } from './mywork/helpers';
+import { isCourseRecentlyActive } from './mywork/helpers';
 
 const FILTER_OPTIONS = [
   { id: 'all', label: 'All' },
@@ -17,23 +17,7 @@ export default function CoursesPage({ basePath = '' }) {
     window.scrollTo(0, 0);
   }, []);
 
-  const enrichedCourses = useMemo(
-    () =>
-      COURSES.map((course) => {
-        const progress = getCourseCompletion(course.id);
-        const activity = buildCourseActivity(course, ANNOUNCEMENTS, LESSONS);
-        return {
-          ...course,
-          progressPercent: progress.percent,
-          completedLessons: progress.completed,
-          totalLessons: progress.total,
-          lastActivityLabel: activity.label,
-          lastActivityTime: activity.time,
-          lastActivityTimestamp: activity.timestamp
-        };
-      }),
-    []
-  );
+  const enrichedCourses = useMemo(() => COURSES, []);
 
   const visibleCourses = useMemo(() => {
     const text = searchValue.trim().toLowerCase();
@@ -89,11 +73,13 @@ export default function CoursesPage({ basePath = '' }) {
         </div>
       </div>
 
-      {/* Courses Grid */}
-      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Courses List */}
+      <div className="w-full px-4 py-12 sm:px-6 lg:px-8 flex justify-center">
+        <div className="flex flex-wrap gap-6 justify-center ">
           {visibleCourses.map((course) => (
-            <CourseCard key={course.id} course={course} basePath={basePath} />
+            <div key={course.id} className="w-[400px] h-[318px]">
+              <CourseCard course={course} basePath={basePath} />
+            </div>
           ))}
         </div>
 
