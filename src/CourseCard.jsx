@@ -1,10 +1,21 @@
 import { useNavigate } from 'react-router-dom';
 import { Bell, Calendar, Users } from 'lucide-react';
 
+function pickColor(seed) {
+  const palette = ['#0e6ba8', '#a23b72', '#f18f01', '#06a77d', '#d62828', '#9d4edd'];
+  const value = String(seed || 'course');
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return palette[hash % palette.length];
+}
+
 export default function CourseCard({ course, basePath = '', compact = false }) {
   const navigate = useNavigate();
   const withBase = (path) => `${basePath}${path}`;
-  const unreadAnnouncements = course.newAnnouncements || 0;
+  const announcementCount = Number(course.announcementCount ?? 0);
+  const cardColor = course.color || pickColor(course.code || course.id);
 
   return (
     <div
@@ -14,7 +25,7 @@ export default function CourseCard({ course, basePath = '', compact = false }) {
       {/* Color Header */}
       <div
         className="h-20 w-full transition-all"
-        style={{ backgroundColor: course.color }}
+        style={{ backgroundColor: cardColor }}
       ></div>
 
       {/* Content */}
@@ -52,14 +63,14 @@ export default function CourseCard({ course, basePath = '', compact = false }) {
         {/* Footer with unread badges and date */}
         <div className="mt-auto pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            {unreadAnnouncements > 0 && (
+            {announcementCount > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1.5">
                 <Bell size={13} />
-                {unreadAnnouncements} new
+                {announcementCount} announcements
               </span>
             )}
-            {unreadAnnouncements === 0 && (
-              <span className="text-xs text-slate-500">No new announcements</span>
+            {announcementCount === 0 && (
+              <span className="text-xs text-slate-500">No announcements</span>
             )}
           </div>
 

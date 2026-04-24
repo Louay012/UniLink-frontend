@@ -1,35 +1,87 @@
 import { useEffect, useMemo, useState } from 'react';
 import CourseCard from './CourseCard';
-import { ANNOUNCEMENTS, COURSES, LESSONS } from './mockData';
-import { isCourseRecentlyActive } from './mywork/helpers';
+import { useAuth } from './context/AuthContext';
+import { listCourses } from './services/course.service';
 
 const FILTER_OPTIONS = [
   { id: 'all', label: 'All' },
-  { id: 'new', label: 'Has New Announcements' },
+  { id: 'new', label: 'Has Announcements' },
   { id: 'recent', label: 'Recently Active' }
 ];
 
+function isCourseRecentlyActive(course) {
+  const timestamp = course.updatedAt || course.createdAt;
+  if (!timestamp) return false;
+  const activityDate = new Date(timestamp);
+  if (Number.isNaN(activityDate.getTime())) return false;
+  const twoDaysMs = 1000 * 60 * 60 * 48;
+  return Date.now() - activityDate.getTime() <= twoDaysMs;
+}
+
 export default function CoursesPage({ basePath = '' }) {
+  const { selectedRole } = useAuth();
   const [searchValue, setSearchValue] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  const enrichedCourses = useMemo(() => COURSES, []);
+  useEffect(() => {
+    let active = true;
+
+    async function loadCourses() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const payload = await listCourses(selectedRole);
+        if (!active) return;
+
+        const items = (payload.items || []).map((course, index) => ({
+          ...course,
+          teacher: course.teacher || { name: 'Unknown Teacher' },
+          announcementCount: Number(course.announcementCount ?? 0),
+          attachmentCount: Number(course.attachmentCount ?? 0),
+          color: course.color || ['#0e6ba8', '#a23b72', '#f18f01', '#06a77d', '#d62828', '#9d4edd'][index % 6]
+        }));
+
+        setCourses(items);
+      } catch (err) {
+        if (active) {
+          setError(err.message || 'Failed to load courses.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadCourses();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRole]);
 
   const visibleCourses = useMemo(() => {
     const text = searchValue.trim().toLowerCase();
 
-    return enrichedCourses
-      .filter((course) => course.title.toLowerCase().includes(text))
+    return courses
       .filter((course) => {
-        if (activeFilter === 'new') return course.newAnnouncements > 0;
-        if (activeFilter === 'recent') return isCourseRecentlyActive(course, ANNOUNCEMENTS, LESSONS);
+        const haystack = `${course.title || ''} ${course.code || ''} ${course.teacher?.name || ''}`.toLowerCase();
+        return haystack.includes(text);
+      })
+      .filter((course) => {
+        if (activeFilter === 'new') return course.announcementCount > 0;
+        if (activeFilter === 'recent') return isCourseRecentlyActive(course);
         return true;
       });
-  }, [activeFilter, enrichedCourses, searchValue]);
+  }, [activeFilter, courses, searchValue]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -39,7 +91,7 @@ export default function CoursesPage({ basePath = '' }) {
           <div>
             <h1 className="text-4xl font-bold text-slate-900">All Courses</h1>
             <p className="text-lg text-slate-600 mt-2">
-              You are enrolled in <span className="font-semibold text-primary">{COURSES.length}</span> courses this semester
+              You are enrolled in <span className="font-semibold text-primary">{courses.length}</span> courses this semester
             </p>
 
             <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -73,18 +125,28 @@ export default function CoursesPage({ basePath = '' }) {
         </div>
       </div>
 
+      {error ? (
+        <div className="mx-4 mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6 lg:mx-8">
+          {error}
+        </div>
+      ) : null}
+
       {/* Courses List */}
       <div className="w-full px-4 py-12 sm:px-6 lg:px-8 flex justify-center">
         <div className="flex flex-wrap gap-6 justify-center ">
-          {visibleCourses.map((course) => (
-            <div key={course.id} className="w-[400px] h-[318px]">
-              <CourseCard course={course} basePath={basePath} />
-            </div>
-          ))}
+          {loading ? (
+            <div className="w-full py-12 text-center text-slate-500">Loading courses...</div>
+          ) : (
+            visibleCourses.map((course) => (
+              <div key={course.id} className="w-[400px] h-[318px]">
+                <CourseCard course={course} basePath={basePath} />
+              </div>
+            ))
+          )}
         </div>
 
         {/* Empty State */}
-        {visibleCourses.length === 0 && (
+        {!loading && visibleCourses.length === 0 && (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">📚</div>
             <h3 className="text-xl font-semibold text-slate-900">No courses found</h3>

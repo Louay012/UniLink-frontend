@@ -1,300 +1,371 @@
-import React from "react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowRight, Bell, BookOpen, FileText, MessageCircle, AlertCircle } from "lucide-react";
 
 import { useAuth } from "./context/AuthContext";
-import { apiRequest } from "./services/api";
-import { useNavigate } from "react-router-dom";
+import {
+  listCourses,
+  listCourseAnnouncements,
+  listCourseAttachments
+} from "./services/course.service";
+import DashboardSectionHeader from "./app/dashboard/components/DashboardSectionHeader";
+import { formatDateTime, getPriorityRank, getBadgeTone } from "./app/dashboard/utils/dashboard.helpers";
 
-function formatDate(value) {
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
+function getStorageKey(role) {
+  return `unilink-dashboard-read-announcements-${String(role || "STUDENT").toUpperCase()}`;
 }
 
 export default function LegacyDashboard() {
-  const { selectedRole, setSelectedRole, roleOptions, user, logout, isAdmin, token } = useAuth();
+  const { selectedRole, token } = useAuth();
   const navigate = useNavigate();
+
+  const [courses, setCourses] = useState([]);
+  const [courseBundles, setCourseBundles] = useState({});
+  const [courseQuery, setCourseQuery] = useState("");
+  const [readIds, setReadIds] = useState(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!token) {
       navigate("/login", { replace: true });
     }
   }, [token, navigate]);
-  
-  const [courses, setCourses] = useState([]);
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
-  const [announcements, setAnnouncements] = useState([]);
-  const [attachments, setAttachments] = useState([]);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [courseQuery, setCourseQuery] = useState("");
-
-  const selectedCourse = useMemo(
-    () => courses.find((course) => course.id === selectedCourseId) || null,
-    [courses, selectedCourseId]
-  );
-
-  const filteredCourses = useMemo(() => {
-    const query = courseQuery.trim().toLowerCase();
-    if (!query) {
-      return courses;
-    }
-
-    return courses.filter((course) => {
-      const haystack = `${course.title} ${course.code} ${course.teacher?.name || ""}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [courses, courseQuery]);
-
-  const dashboardStats = useMemo(() => {
-    const totalAnnouncements = courses.reduce(
-      (acc, course) => acc + Number(course.announcementCount || 0),
-      0
-    );
-    const totalAttachments = courses.reduce(
-      (acc, course) => acc + Number(course.attachmentCount || 0),
-      0
-    );
-
-    return [
-      { label: "Courses", value: courses.length },
-      { label: "Announcements", value: totalAnnouncements },
-      { label: "Attachments", value: totalAttachments },
-      { label: "Active Role", value: selectedRole.label }
-    ];
-  }, [courses, selectedRole.label]);
-
-  const recentActivity = useMemo(() => {
-    return announcements
-      .slice()
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 4);
-  }, [announcements]);
-
-  async function fetchCourses() {
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const payload = await apiRequest("/courses", selectedRole);
-      setCourses(payload.items || []);
-      setSelectedCourseId((prev) => prev || payload.items?.[0]?.id || null);
-    } catch {
-      setError("Could not load courses. Please make sure backend is running.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function fetchCourseDetails(courseId) {
-    if (!courseId) {
-      setAnnouncements([]);
-      setAttachments([]);
-      return;
-    }
-
-    try {
-      const [announcementsPayload, attachmentsPayload] = await Promise.all([
-        apiRequest(`/courses/${courseId}/announcements`, selectedRole),
-        apiRequest(`/courses/${courseId}/attachments`, selectedRole)
-      ]);
-
-      setAnnouncements(announcementsPayload.items || []);
-      setAttachments(attachmentsPayload.items || []);
-    } catch {
-      setError("Could not load course details.");
-    }
-  }
-
-  async function handlePublish(event) {
-    event.preventDefault();
-    if (!selectedCourse || !title.trim() || !body.trim()) {
-      return;
-    }
-
-    try {
-      await apiRequest(`/courses/${selectedCourse.id}/announcements`, selectedRole, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ title: title.trim(), body: body.trim() })
-      });
-
-      setTitle("");
-      setBody("");
-      await fetchCourseDetails(selectedCourse.id);
-    } catch (e) {
-      setError(e.message || "Failed to publish announcement.");
-    }
-  }
 
   useEffect(() => {
-    fetchCourses();
+    const raw = localStorage.getItem(getStorageKey(selectedRole.value));
+    if (!raw) {
+      setReadIds(new Set());
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      setReadIds(new Set(Array.isArray(parsed) ? parsed : []));
+    } catch {
+      setReadIds(new Set());
+    }
   }, [selectedRole.value]);
 
   useEffect(() => {
-    fetchCourseDetails(selectedCourseId);
-  }, [selectedCourseId, selectedRole.value]);
+    localStorage.setItem(getStorageKey(selectedRole.value), JSON.stringify([...readIds]));
+  }, [readIds, selectedRole.value]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDashboard() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const payload = await listCourses(selectedRole);
+        const courseItems = payload.items || [];
+        if (!active) return;
+
+        setCourses(courseItems);
+
+        const bundles = await Promise.all(
+          courseItems.map(async (course) => {
+            const [announcementsPayload, attachmentsPayload] = await Promise.all([
+              listCourseAnnouncements(selectedRole, course.id),
+              listCourseAttachments(selectedRole, course.id)
+            ]);
+
+            return [
+              course.id,
+              {
+                announcements: announcementsPayload.items || [],
+                attachments: attachmentsPayload.items || []
+              }
+            ];
+          })
+        );
+
+        if (!active) return;
+        setCourseBundles(Object.fromEntries(bundles));
+      } catch (loadError) {
+        if (active) {
+          setError(loadError.message || "Could not load dashboard data.");
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadDashboard();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRole]);
+
+  const withCourseData = useMemo(() => {
+    return courses
+      .map((course) => {
+        const bundle = courseBundles[course.id] || { announcements: [], attachments: [] };
+        const announcements = bundle.announcements || [];
+        const attachments = bundle.attachments || [];
+        const lastUpdate = announcements[0]?.createdAt || course.updatedAt || course.createdAt || null;
+        const unreadCount = announcements.filter((announcement) => !readIds.has(announcement.id)).length;
+
+        return {
+          ...course,
+          announcements,
+          attachments,
+          lastUpdate,
+          unreadCount
+        };
+      })
+      .sort((left, right) => {
+        const rightTime = new Date(right.lastUpdate || 0).getTime();
+        const leftTime = new Date(left.lastUpdate || 0).getTime();
+        if (rightTime !== leftTime) return rightTime - leftTime;
+        return String(left.title || "").localeCompare(String(right.title || ""));
+      });
+  }, [courses, courseBundles, readIds]);
+
+  const allAnnouncements = useMemo(() => {
+    return withCourseData
+      .flatMap((course) =>
+        (course.announcements || []).map((announcement) => ({
+          ...announcement,
+          courseId: course.id,
+          courseTitle: course.title,
+          attachments: (course.attachments || []).filter(
+            (attachment) => String(attachment.announcementId) === String(announcement.id)
+          )
+        }))
+      )
+      .sort((left, right) => {
+        const priorityDiff = getPriorityRank(left.priority) - getPriorityRank(right.priority);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(right.createdAt || 0) - new Date(left.createdAt || 0);
+      });
+  }, [withCourseData]);
+
+  const unreadAnnouncements = useMemo(
+    () => allAnnouncements.filter((announcement) => !readIds.has(announcement.id)),
+    [allAnnouncements, readIds]
+  );
+
+  const featuredAnnouncements = unreadAnnouncements.slice(0, 4);
+
+  const recentAttachments = useMemo(() => {
+    return withCourseData
+      .flatMap((course) =>
+        (course.attachments || []).map((attachment) => ({
+          ...attachment,
+          courseTitle: course.title
+        }))
+      )
+      .sort((left, right) => new Date(right.uploadedAt || right.createdAt || 0) - new Date(left.uploadedAt || left.createdAt || 0))
+      .slice(0, 3);
+  }, [withCourseData]);
+
+  const filteredCourses = useMemo(() => {
+    const query = courseQuery.trim().toLowerCase();
+    if (!query) return withCourseData;
+
+    return withCourseData.filter((course) => {
+      const haystack = `${course.title || ""} ${course.code || ""} ${course.teacher?.name || ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [courseQuery, withCourseData]);
+
+  const stats = useMemo(() => {
+    const materialsCount = withCourseData.reduce((sum, course) => sum + course.attachments.length, 0);
+    return [
+      { label: "Unread", value: unreadAnnouncements.length, hint: "Announcements to check" },
+      { label: "Courses", value: withCourseData.length, hint: "Registered this semester" },
+      { label: "Materials", value: materialsCount, hint: "Resources available" }
+    ];
+  }, [unreadAnnouncements.length, withCourseData]);
+
+  const quickActions = [
+    { label: "Message Coordinator", icon: MessageCircle, to: "/chat" },
+    { label: "Report Issue / Feedback", icon: AlertCircle, to: "/feedback" },
+    { label: "Open Courses", icon: BookOpen, to: "/courses" }
+  ];
+
+  const courseHealthCards = useMemo(() => {
+    return withCourseData.slice(0, 3).map((course) => ({
+      id: course.id,
+      title: course.title,
+      teacherName: course.teacher?.name || "Teacher",
+      lastUpdate: course.lastUpdate,
+      materialsCount: course.attachments.length,
+      unreadCount: course.unreadCount
+    }));
+  }, [withCourseData]);
+
+  const generalNotice = allAnnouncements[0] || null;
+
+  function markAsRead(announcementId) {
+    setReadIds((previous) => {
+      const next = new Set(previous);
+      next.add(announcementId);
+      return next;
+    });
+  }
+
+  function openAnnouncement(announcement) {
+    markAsRead(announcement.id);
+    navigate(`/courses/${announcement.courseId}`);
+  }
 
   return (
-    <div className="page-shell">
-      <header className="hero">
+    <div className="page-shell dashboard-work">
+      <header className="hero dashboard-work-hero">
         <div>
           <p className="tag">UniLink</p>
-          <h1>Courses Hub</h1>
-          <p className="subtitle">
-            Course workspace with announcements and attachments. Messaging now lives in the dedicated Chat page.
-          </p>
+          <h1>Student Dashboard</h1>
+          <p className="subtitle">A clear stream of announcements, resources, and actions from your actual course data.</p>
         </div>
-        {/* role-switch removed: use sidebar to change role */}
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
 
-      <section className="stats-grid">
-        {dashboardStats.map((stat) => (
-          <article className="stat-card" key={stat.label}>
+      <section className="dashboard-work-metrics" aria-label="Student metrics">
+        {stats.map((stat) => (
+          <article className="dashboard-metric" key={stat.label}>
             <p>{stat.label}</p>
-            <h3>{stat.value}</h3>
+            <h3>{isLoading ? "..." : stat.value}</h3>
+            <small>{stat.hint}</small>
           </article>
         ))}
       </section>
 
-      <main className="layout">
-        <aside className="courses-panel">
-          <div className="panel-header">
-            <h2>My Courses</h2>
-            {isLoading ? <span>Loading...</span> : <span>{courses.length} courses</span>}
-          </div>
+      <section className="dashboard-work-section">
+        <DashboardSectionHeader
+          title="Latest Announcements"
+          kicker="Announcement Stream"
+          meta={`${featuredAnnouncements.length} unread shown`}
+          action={
+            <button type="button" className="dashboard-ghost-btn" onClick={() => navigate("/courses")}>
+              View courses <ArrowRight size={14} />
+            </button>
+          }
+        />
 
-          <input
-            className="course-search"
-            type="text"
-            placeholder="Search by title, code, or teacher"
-            value={courseQuery}
-            onChange={(event) => setCourseQuery(event.target.value)}
-          />
-
-          <div className="course-list">
-            {filteredCourses.map((course) => (
-              <button
-                key={course.id}
-                className={`course-item ${selectedCourseId === course.id ? "selected" : ""}`}
-                onClick={() => setSelectedCourseId(course.id)}
-              >
-                <span className="dot" style={{ background: course.color || "#22c55e" }} />
-                <div>
-                  <h3>{course.title}</h3>
-                  <p>{course.code}</p>
+        <div className="dashboard-list">
+          {featuredAnnouncements.length ? (
+            featuredAnnouncements.map((announcement) => (
+              <article key={announcement.id} className="dashboard-list-item">
+                <div className="dashboard-list-main">
+                  <div className="dashboard-list-title-row">
+                    <h4>{announcement.title}</h4>
+                    <span className={`priority-chip ${getBadgeTone(announcement.priority)}`}>
+                      {String(announcement.priority || "NORMAL").toUpperCase()}
+                    </span>
+                  </div>
+                  <p>{announcement.body}</p>
                   <small>
-                    {course.announcementCount} announcements . {course.attachmentCount} attachments
+                    {announcement.courseTitle} . {formatDateTime(announcement.createdAt)}
                   </small>
                 </div>
-              </button>
-            ))}
-            {!filteredCourses.length ? <p className="subtitle">No course matches this search.</p> : null}
-          </div>
-        </aside>
-
-        <section className="details-panel">
-          {!selectedCourse ? (
-            <div className="empty-state">Select a course to view details.</div>
+                <button type="button" className="dashboard-inline-action" onClick={() => openAnnouncement(announcement)}>
+                  View in course
+                </button>
+              </article>
+            ))
           ) : (
-            <>
-              <div className="course-banner">
-                <div>
-                  <h2>{selectedCourse.title}</h2>
-                  <p>{selectedCourse.description}</p>
-                  <small>
-                    Class: {selectedCourse.classGroupCode} . Semester: {selectedCourse.semester} . Teacher: {selectedCourse.teacher?.name}
-                  </small>
-                </div>
-              </div>
-
-              <div className="grid">
-                <article className="card">
-                  <div className="card-header">
-                    <h3>Announcements</h3>
-                    <span>{announcements.length}</span>
-                  </div>
-
-                  {selectedRole.value === "TEACHER" ? (
-                    <form className="announce-form" onSubmit={handlePublish}>
-                      <input
-                        type="text"
-                        value={title}
-                        placeholder="Announcement title"
-                        onChange={(e) => setTitle(e.target.value)}
-                      />
-                      <textarea
-                        rows={3}
-                        value={body}
-                        placeholder="Write a clear course update..."
-                        onChange={(e) => setBody(e.target.value)}
-                      />
-                      <button type="submit">Publish</button>
-                    </form>
-                  ) : null}
-
-                  <div className="feed">
-                    {announcements.map((item) => (
-                      <div key={item.id} className="feed-item">
-                        <h4>{item.title}</h4>
-                        <p>{item.body}</p>
-                        <small>{formatDate(item.createdAt)}</small>
-                      </div>
-                    ))}
-                    {!announcements.length ? <p>No announcements yet.</p> : null}
-                  </div>
-                </article>
-
-                <article className="card">
-                  <div className="card-header">
-                    <h3>Attachments</h3>
-                    <span>{attachments.length}</span>
-                  </div>
-                  <div className="attachment-list">
-                    {attachments.map((file) => (
-                      <a href={file.url} className="attachment" key={file.id}>
-                        <div>
-                          <h4>{file.title}</h4>
-                          <p>{file.type.toUpperCase()} . {file.size}</p>
-                        </div>
-                        <small>{formatDate(file.uploadedAt)}</small>
-                      </a>
-                    ))}
-                    {!attachments.length ? <p>No attachments available.</p> : null}
-                  </div>
-                </article>
-
-                <article className="card wide-card">
-                  <div className="card-header">
-                    <h3>Recent Activity</h3>
-                    <span>{recentActivity.length} latest</span>
-                  </div>
-                  <div className="activity-list">
-                    {recentActivity.map((item) => (
-                      <div key={item.id} className="activity-item">
-                        <div>
-                          <h4>{item.title}</h4>
-                          <p>{item.body}</p>
-                        </div>
-                        <small>{formatDate(item.createdAt)}</small>
-                      </div>
-                    ))}
-                    {!recentActivity.length ? <p>No recent activity for this course.</p> : null}
-                  </div>
-                </article>
-              </div>
-            </>
+            <p className="subtitle">You are fully up to date.</p>
           )}
+        </div>
+      </section>
+
+      <div className="dashboard-work-grid">
+        <section className="card dashboard-card-tight">
+          <DashboardSectionHeader title="Quick Actions" kicker="Actions" meta="Real navigation" />
+          <div className="dashboard-action-grid">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button key={action.label} type="button" className="dashboard-action-btn" onClick={() => navigate(action.to)}>
+                  <Icon size={16} />
+                  <span>{action.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </section>
-      </main>
+
+        <section className="card dashboard-card-tight">
+          <DashboardSectionHeader title="Focus Today" kicker="Resource Activity" meta={`${recentAttachments.length} latest files`} />
+          <div className="dashboard-mini-list">
+            {recentAttachments.length ? (
+              recentAttachments.map((attachment) => (
+                <article key={attachment.id} className="dashboard-mini-item">
+                  <FileText size={14} />
+                  <div>
+                    <h4>{attachment.title || attachment.fileName || "Attachment"}</h4>
+                    <p>{attachment.courseTitle}</p>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="subtitle">No recent files to show.</p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <section className="dashboard-work-section">
+        <DashboardSectionHeader title="Courses" kicker="My Courses" meta={`${filteredCourses.length} visible`} />
+
+        <input
+          className="course-search"
+          type="text"
+          value={courseQuery}
+          placeholder="Search by course title, code, or teacher"
+          onChange={(event) => setCourseQuery(event.target.value)}
+        />
+
+        <div className="dashboard-course-grid">
+          {filteredCourses.map((course) => (
+            <article key={course.id} className="dashboard-course-card">
+              <div className="dashboard-course-header" style={{ background: course.color || "#0f172a" }} />
+              <div className="dashboard-course-body">
+                <p className="dashboard-course-code">{course.code}</p>
+                <h4>{course.title}</h4>
+                <p>{course.teacher?.name || "Unknown Teacher"}</p>
+                <small>
+                  {course.announcements.length} announcements . {course.attachments.length} attachments . {course.unreadCount} unread
+                </small>
+                <button type="button" className="dashboard-inline-action" onClick={() => navigate(`/courses/${course.id}`)}>
+                  Open course
+                </button>
+              </div>
+            </article>
+          ))}
+          {!filteredCourses.length ? <p className="subtitle">No course matches your search.</p> : null}
+        </div>
+      </section>
+
+      <section className="dashboard-work-section">
+        <DashboardSectionHeader title="Course Health" kicker="Overview" meta="Current semester snapshot" />
+        <div className="dashboard-health-grid">
+          <article className="dashboard-health-notice">
+            <p>General notice</p>
+            <h4>{generalNotice ? generalNotice.title : "No general notice right now"}</h4>
+            <small>{generalNotice ? generalNotice.body : "New platform-wide updates will appear here."}</small>
+          </article>
+
+          {courseHealthCards.map((course) => (
+            <article key={course.id} className="dashboard-health-card">
+              <h4>{course.title}</h4>
+              <p>Teacher: {course.teacherName}</p>
+              <small>
+                Last update: {course.lastUpdate ? formatDateTime(course.lastUpdate) : "No update yet"}
+              </small>
+              <small>Materials: {course.materialsCount} . Unread: {course.unreadCount}</small>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

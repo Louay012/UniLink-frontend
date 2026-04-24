@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { COURSES, MOCK_USER } from "../mockData";
+import { listCourses } from "../services/course.service";
 import {
   Home,
   BookOpen,
@@ -27,7 +27,8 @@ const getLinks = (isAdmin) => {
       ...baseLinks,
       { to: "/admin/add-user", label: "Add User" },
       { to: "/admin/view-users", label: "View Users" },
-      { to: "/admin/assign-courses", label: "Assign Courses" }
+      { to: "/admin/assign-courses", label: "Assign Courses" },
+      { to: "/admin/academic-setup", label: "Academic Setup" }
     ];
   }
 
@@ -35,7 +36,7 @@ const getLinks = (isAdmin) => {
 };
 
 export default function Sidebar() {
-  const { user, logout, selectedRole } = useAuth();
+  const { user, token, logout, selectedRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = user?.role === "ADMIN";
@@ -44,7 +45,19 @@ export default function Sidebar() {
   const [isMobile, setIsMobile] = useState(initialIsMobile);
   const [isOpen, setIsOpen] = useState(!initialIsMobile);
   const [isCoursesExpanded, setIsCoursesExpanded] = useState(true);
+  const [sidebarCourses, setSidebarCourses] = useState([]);
+  const [coursesError, setCoursesError] = useState("");
   const isStudentSidebar = !isAdmin;
+
+  const topSidebarCourses = useMemo(() => {
+    const sorted = [...sidebarCourses].sort((left, right) => {
+      const rightTime = new Date(right.updatedAt || right.createdAt || 0).getTime();
+      const leftTime = new Date(left.updatedAt || left.createdAt || 0).getTime();
+      if (rightTime !== leftTime) return rightTime - leftTime;
+      return String(left.title || '').localeCompare(String(right.title || ''));
+    });
+    return sorted.slice(0, 3);
+  }, [sidebarCourses]);
 
   useEffect(() => {
     const onResize = () => {
@@ -56,13 +69,12 @@ export default function Sidebar() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Add a body-class so CSS can reliably switch layouts for mobile
+  // Cleanup any legacy mobile-view class that can force one-column layout.
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (isMobile) document.body.classList.add('mobile-view');
-    else document.body.classList.remove('mobile-view');
+    document.body.classList.remove('mobile-view');
     return () => document.body.classList.remove('mobile-view');
-  }, [isMobile]);
+  }, []);
 
   // Keep a body class to let global styles adjust layout when collapsed
   useEffect(() => {
@@ -71,6 +83,37 @@ export default function Sidebar() {
       else document.body.classList.remove('sidebar-collapsed');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCoursesForSidebar() {
+      if (!token || isAdmin) {
+        if (active) {
+          setSidebarCourses([]);
+          setCoursesError('');
+        }
+        return;
+      }
+
+      try {
+        const payload = await listCourses(selectedRole);
+        if (!active) return;
+        setSidebarCourses(payload.items || []);
+        setCoursesError('');
+      } catch (error) {
+        if (!active) return;
+        setSidebarCourses([]);
+        setCoursesError(error.message || 'Could not load courses.');
+      }
+    }
+
+    loadCoursesForSidebar();
+
+    return () => {
+      active = false;
+    };
+  }, [isAdmin, selectedRole, token]);
 
   const iconFor = (label) => {
     const key = (label || '').toLowerCase();
@@ -85,7 +128,7 @@ export default function Sidebar() {
   const profileName = user
     ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "User"
     : "User";
-  const profileSubtitle = selectedRole?.label || user?.role || MOCK_USER?.classGroup || "Student";
+  const profileSubtitle = selectedRole?.label || user?.role || "Student";
   const isCoursesRoute = location.pathname === '/courses';
 
   return (
@@ -191,7 +234,7 @@ export default function Sidebar() {
 
             {isOpen && isCoursesExpanded && (
               <div style={{ marginLeft: '0.6rem', borderLeft: '2px solid rgba(255,255,255,0.2)', paddingLeft: '0.55rem', display: 'grid', gap: '0.35rem' }}>
-                {COURSES.slice(0, 3).map((course) => (
+                {topSidebarCourses.map((course) => (
                   <NavLink
                     key={course.id}
                     to={`/courses/${course.id}`}
@@ -200,7 +243,7 @@ export default function Sidebar() {
                     title={course.title}
                   >
                     <span className="nav-label" style={{ fontSize: '0.88rem' }}>{course.title}</span>
-                    {(course.newAnnouncements || 0) > 0 && (
+                    {(Number(course.announcementCount) || 0) > 0 && (
                       <span
                         style={{
                           marginLeft: '0.45rem',
@@ -212,11 +255,19 @@ export default function Sidebar() {
                           fontWeight: 700
                         }}
                       >
-                        {course.newAnnouncements} new
+                        {`${Number(course.announcementCount)} new`}
                       </span>
                     )}
                   </NavLink>
                 ))}
+
+                {!topSidebarCourses.length && !coursesError ? (
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1' }}>No courses yet.</p>
+                ) : null}
+
+                {coursesError ? (
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#fca5a5' }}>{coursesError}</p>
+                ) : null}
 
                 <NavLink
                   to="/courses"

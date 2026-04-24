@@ -15,6 +15,11 @@ export default function AdminPage() {
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [error,   setError]   = useState("");
   const [errorCourses, setErrorCourses] = useState("");
+  const [departments, setDepartments] = useState([]);
+  const [levels, setLevels] = useState([]);
+  const [classGroups, setClassGroups] = useState([]);
+  const [classLoading, setClassLoading] = useState(true);
+  const [classError, setClassError] = useState("");
 
   // Form state for creating a new user
   const [form, setForm] = useState({
@@ -22,6 +27,29 @@ export default function AdminPage() {
   });
   const [formError,   setFormError]   = useState("");
   const [formSuccess, setFormSuccess] = useState("");
+
+  // Form state for creating a class group
+  const [classForm, setClassForm] = useState({
+    code: "",
+    name: "",
+    departmentId: "",
+    levelId: "",
+    coordinatorUserId: ""
+  });
+  const [classFormError, setClassFormError] = useState("");
+  const [classFormSuccess, setClassFormSuccess] = useState("");
+
+  // Form state for creating a course
+  const [courseForm, setCourseForm] = useState({
+    code: "",
+    title: "",
+    description: "",
+    classGroupId: "",
+    isCourseChatEnabled: true,
+    teacherUserId: ""
+  });
+  const [courseFormError, setCourseFormError] = useState("");
+  const [courseFormSuccess, setCourseFormSuccess] = useState("");
 
   // Redirect if not admin
   useEffect(() => {
@@ -36,6 +64,10 @@ export default function AdminPage() {
   // Load all courses when the page opens
   useEffect(() => {
     fetchCourses();
+  }, []);
+
+  useEffect(() => {
+    fetchClassMetadata();
   }, []);
 
   async function fetchUsers() {
@@ -59,6 +91,25 @@ export default function AdminPage() {
       setErrorCourses(err.message);
     } finally {
       setLoadingCourses(false);
+    }
+  }
+
+  async function fetchClassMetadata() {
+    try {
+      setClassLoading(true);
+      setClassError("");
+      const [departmentsData, levelsData, classGroupsData] = await Promise.all([
+        apiRequest("/admin/departments"),
+        apiRequest("/admin/levels"),
+        apiRequest("/admin/class-groups")
+      ]);
+      setDepartments(departmentsData || []);
+      setLevels(levelsData || []);
+      setClassGroups(classGroupsData || []);
+    } catch (err) {
+      setClassError(err.message || "Failed to load class metadata");
+    } finally {
+      setClassLoading(false);
     }
   }
 
@@ -118,6 +169,73 @@ export default function AdminPage() {
     }
   }
 
+  async function handleCreateClassGroup(e) {
+    e.preventDefault();
+    setClassFormError("");
+    setClassFormSuccess("");
+
+    try {
+      await apiRequest("/admin/class-groups", {
+        method: "POST",
+        body: JSON.stringify({
+          code: classForm.code,
+          name: classForm.name,
+          departmentId: classForm.departmentId,
+          levelId: classForm.levelId,
+          coordinatorUserId: classForm.coordinatorUserId || null
+        })
+      });
+
+      setClassFormSuccess("Class group created successfully!");
+      setClassForm({
+        code: "",
+        name: "",
+        departmentId: "",
+        levelId: "",
+        coordinatorUserId: ""
+      });
+      fetchClassMetadata();
+    } catch (err) {
+      setClassFormError(err.message || "Failed to create class group");
+    }
+  }
+
+  async function handleCreateCourse(e) {
+    e.preventDefault();
+    setCourseFormError("");
+    setCourseFormSuccess("");
+
+    try {
+      await apiRequest("/admin/courses", {
+        method: "POST",
+        body: JSON.stringify({
+          code: courseForm.code,
+          title: courseForm.title,
+          description: courseForm.description,
+          classGroupId: courseForm.classGroupId,
+          isCourseChatEnabled: courseForm.isCourseChatEnabled,
+          teacherUserId: courseForm.teacherUserId || null
+        })
+      });
+
+      setCourseFormSuccess("Course created successfully!");
+      setCourseForm({
+        code: "",
+        title: "",
+        description: "",
+        classGroupId: "",
+        isCourseChatEnabled: true,
+        teacherUserId: ""
+      });
+      fetchCourses();
+    } catch (err) {
+      setCourseFormError(err.message || "Failed to create course");
+    }
+  }
+
+  const coordinators = users.filter((u) => u.role === "COORDINATOR");
+  const teachers = users.filter((u) => u.role === "TEACHER");
+
   return (
     <div className="page-shell admin-shell">
       <header className="hero">
@@ -171,6 +289,207 @@ export default function AdminPage() {
 
           <button className="primary-btn" type="submit">Create User</button>
         </form>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>Create Class Group</h3>
+          <span>Academic structure</span>
+        </div>
+
+        {classFormError ? <p className="error-banner">{classFormError}</p> : null}
+        {classFormSuccess ? <p className="success-banner">{classFormSuccess}</p> : null}
+
+        <form onSubmit={handleCreateClassGroup} className="admin-form-grid">
+          <label>
+            Code
+            <input
+              type="text"
+              value={classForm.code}
+              onChange={(e) => setClassForm((prev) => ({ ...prev, code: e.target.value }))}
+              required
+            />
+          </label>
+
+          <label>
+            Name
+            <input
+              type="text"
+              value={classForm.name}
+              onChange={(e) => setClassForm((prev) => ({ ...prev, name: e.target.value }))}
+              required
+            />
+          </label>
+
+          <label>
+            Department
+            <select
+              value={classForm.departmentId}
+              onChange={(e) => setClassForm((prev) => ({ ...prev, departmentId: e.target.value }))}
+              required
+            >
+              <option value="">Select department...</option>
+              {departments.map((dep) => (
+                <option key={dep.id} value={dep.id}>
+                  {dep.code} - {dep.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Level
+            <select
+              value={classForm.levelId}
+              onChange={(e) => setClassForm((prev) => ({ ...prev, levelId: e.target.value }))}
+              required
+            >
+              <option value="">Select level...</option>
+              {levels.map((lvl) => (
+                <option key={lvl.id} value={lvl.id}>
+                  {lvl.code} - {lvl.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Coordinator (optional)
+            <select
+              value={classForm.coordinatorUserId}
+              onChange={(e) => setClassForm((prev) => ({ ...prev, coordinatorUserId: e.target.value }))}
+            >
+              <option value="">No coordinator</option>
+              {coordinators.map((coord) => (
+                <option key={coord.id} value={coord.id}>
+                  {coord.first_name} {coord.last_name} ({coord.email})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button className="primary-btn" type="submit">Create Class Group</button>
+        </form>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>Create Course</h3>
+          <span>Course catalog</span>
+        </div>
+
+        {courseFormError ? <p className="error-banner">{courseFormError}</p> : null}
+        {courseFormSuccess ? <p className="success-banner">{courseFormSuccess}</p> : null}
+
+        <form onSubmit={handleCreateCourse} className="admin-form-grid">
+          <label>
+            Code
+            <input
+              type="text"
+              value={courseForm.code}
+              onChange={(e) => setCourseForm((prev) => ({ ...prev, code: e.target.value }))}
+              required
+            />
+          </label>
+
+          <label>
+            Title
+            <input
+              type="text"
+              value={courseForm.title}
+              onChange={(e) => setCourseForm((prev) => ({ ...prev, title: e.target.value }))}
+              required
+            />
+          </label>
+
+          <label>
+            Description
+            <input
+              type="text"
+              value={courseForm.description}
+              onChange={(e) => setCourseForm((prev) => ({ ...prev, description: e.target.value }))}
+            />
+          </label>
+
+          <label>
+            Class Group
+            <select
+              value={courseForm.classGroupId}
+              onChange={(e) => setCourseForm((prev) => ({ ...prev, classGroupId: e.target.value }))}
+              required
+            >
+              <option value="">Select class group...</option>
+              {classGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.code} - {group.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Teacher (optional)
+            <select
+              value={courseForm.teacherUserId}
+              onChange={(e) => setCourseForm((prev) => ({ ...prev, teacherUserId: e.target.value }))}
+            >
+              <option value="">No teacher assigned</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.first_name} {teacher.last_name} ({teacher.email})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Course chat enabled</span>
+            <input
+              type="checkbox"
+              checked={courseForm.isCourseChatEnabled}
+              onChange={(e) => setCourseForm((prev) => ({ ...prev, isCourseChatEnabled: e.target.checked }))}
+            />
+          </label>
+
+          <button className="primary-btn" type="submit">Create Course</button>
+        </form>
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>Class Groups</h3>
+          <span>{classGroups.length} groups</span>
+        </div>
+
+        {classLoading ? <p className="subtitle">Loading class groups...</p> : null}
+        {classError ? <p className="error-banner">{classError}</p> : null}
+
+        {!classLoading && !classError ? (
+          <div className="table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Level</th>
+                  <th>Coordinator</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classGroups.map((group) => (
+                  <tr key={group.id}>
+                    <td>{group.code}</td>
+                    <td>{group.name}</td>
+                    <td>{group.departmentCode}</td>
+                    <td>{group.levelCode}</td>
+                    <td>{group.coordinatorName || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
 
       <section className="card">

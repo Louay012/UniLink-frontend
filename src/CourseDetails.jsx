@@ -1,46 +1,386 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Lock, Play, Download, Send } from 'lucide-react';
-import { COURSES, ANNOUNCEMENTS, LESSONS, CHAT_MESSAGES, formatDate } from './mockData';
-import ProgressBar from './mywork/components/ProgressBar';
-import AttachmentPreview from './mywork/components/AttachmentPreview';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Paperclip, Trash2, X } from 'lucide-react';
+
+import { useAuth } from './context/AuthContext';
+import {
+  getCourse,
+  listCourseAnnouncements,
+  listCourseAttachments,
+  createCourseAnnouncement,
+  listCourseChats,
+  listChatMessages,
+  sendChatMessage
+} from './services/course.service';
 import AnnouncementCard from './mywork/components/AnnouncementCard';
-import { getCourseCompletion, sortAnnouncementsByPriorityThenDate } from './mywork/helpers';
+import AttachmentPreview from './mywork/components/AttachmentPreview';
+import ChatBox from './components/ChatBox';
+
+function pickColor(seed) {
+  const palette = ['#0e6ba8', '#a23b72', '#f18f01', '#06a77d', '#d62828', '#9d4edd'];
+  const value = String(seed || 'course');
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return palette[hash % palette.length];
+}
+
+function mapAnnouncement(announcement, teacherName) {
+  return {
+    id: announcement.id,
+    title: announcement.title,
+    content: announcement.body,
+    timestamp: announcement.createdAt,
+    author: teacherName || 'Teacher',
+    visualType: announcement.priority === 'URGENT' ? 'URGENT' : 'NORMAL'
+  };
+}
 
 export default function CourseDetails({ basePath = '' }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { selectedRole } = useAuth();
+
+  const [activeTab, setActiveTab] = useState('content');
+  const [course, setCourse] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [courseChats, setCourseChats] = useState([]);
+  const [selectedChatId, setSelectedChatId] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [messageDraft, setMessageDraft] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(selectedRole?.userId || null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: '',
+    body: '',
+    priority: 'NORMAL',
+    attachmentName: '',
+    attachmentUrl: '',
+    attachmentType: '',
+    attachmentSize: ''
+  });
+  const [announcementFiles, setAnnouncementFiles] = useState([]);
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false);
+  const [postError, setPostError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
   const withBase = (path) => `${basePath}${path}`;
-  const [activeTab, setActiveTab] = useState('announcements');
-  const [expandedWeeks, setExpandedWeeks] = useState({});
-  const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState(CHAT_MESSAGES[id] || []);
-  const [completedLessons, setCompletedLessons] = useState(() => new Set());
+  const cardColor = course?.color || pickColor(course?.code || id);
+  const isTeacherView = selectedRole?.value === 'TEACHER';
 
-  const course = COURSES.find((c) => c.id === id);
-  const courseAnnouncements = ANNOUNCEMENTS[id] || [];
-  const courseLessons = LESSONS[id] || [];
-  const sortedAnnouncements = sortAnnouncementsByPriorityThenDate(courseAnnouncements).map((item) => ({
-    ...item,
-    visualType: item.badge === 'URGENT' ? 'URGENT' : item.id === 'a-1' || item.id === 'a-8' ? 'PINNED' : 'NORMAL',
-    author: course?.teacher?.name || 'Teacher'
-  }));
+  const loadCourseData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    setChatError('');
 
-  const flattenedLessonItems = courseLessons.flatMap((week) => week.items);
-  const completionMeta = getCourseCompletion(id);
-  const totalLessons = completionMeta.total || flattenedLessonItems.length;
-  const completedCount = completedLessons.size;
-  const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+    try {
+      const [coursePayload, announcementsPayload, attachmentsPayload] = await Promise.all([
+        getCourse(selectedRole, id),
+        listCourseAnnouncements(selectedRole, id),
+        listCourseAttachments(selectedRole, id)
+      ]);
+
+      const normalizedCourse = coursePayload
+        ? {
+            ...coursePayload,
+            teacher: coursePayload.teacher || { name: 'Unknown Teacher' },
+            color: coursePayload.color || pickColor(coursePayload.code || id),
+            announcementCount: Number(coursePayload.announcementCount ?? 0),
+            attachmentCount: Number(coursePayload.attachmentCount ?? 0)
+          }
+        : null;
+
+      const normalizedAttachments = (attachmentsPayload.items || []).map((attachment) => ({
+        ...attachment,
+        name: attachment.title || attachment.name || 'Attachment'
+      }));
+
+      const byAnnouncement = normalizedAttachments.reduce((acc, attachment) => {
+        const key = String(attachment.announcementId || '');
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(attachment);
+        return acc;
+      }, {});
+
+      const mappedAnnouncements = (announcementsPayload.items || []).map((announcement) => {
+        const mapped = mapAnnouncement(announcement, normalizedCourse?.teacher?.name);
+        return {
+          ...mapped,
+          attachments: byAnnouncement[String(announcement.id)] || []
+        };
+      });
+
+      let chatsItems = [];
+      try {
+        const chatsPayload = await listCourseChats(selectedRole, id);
+        if (chatsPayload.actorUserId) {
+          setCurrentUserId(chatsPayload.actorUserId);
+        }
+        chatsItems = (chatsPayload.items || []).map((chat) => ({
+          ...chat,
+          chatType: String(chat.chat_type || chat.chatType || '').toUpperCase(),
+          title: chat.title || chat.name || 'Course Chat',
+          messageCount: Number(chat.messageCount ?? chat.message_count ?? 0)
+        }));
+      } catch (chatLoadError) {
+        setChatError(chatLoadError.message || 'Could not load messaging for this course.');
+      }
+
+      setCourse(normalizedCourse);
+      setAnnouncements(mappedAnnouncements);
+      setAttachments(normalizedAttachments);
+      setCourseChats(chatsItems);
+      setSelectedChatId((prev) => {
+        if (prev && chatsItems.some((chat) => chat.id === prev)) {
+          return prev;
+        }
+        return chatsItems[0]?.id || null;
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to load course details.');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, selectedRole]);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [id]);
+    loadCourseData();
+  }, [loadCourseData]);
 
   useEffect(() => {
-    const initialCount = Math.min(completionMeta.completed, flattenedLessonItems.length);
-    const defaults = new Set(flattenedLessonItems.slice(0, initialCount).map((item) => item.id));
-    setCompletedLessons(defaults);
-  }, [id]);
+    let active = true;
+
+    async function loadChatMessages() {
+      if (!selectedChatId) {
+        setChatMessages([]);
+        return;
+      }
+
+      setChatLoading(true);
+      try {
+        const payload = await listChatMessages(selectedRole, selectedChatId);
+        if (!active) return;
+        if (payload.actorUserId) {
+          setCurrentUserId(payload.actorUserId);
+        }
+        setChatMessages(payload.items || []);
+      } catch (chatMessageError) {
+        if (active) {
+          setChatError(chatMessageError.message || 'Failed to load chat messages.');
+        }
+      } finally {
+        if (active) {
+          setChatLoading(false);
+        }
+      }
+    }
+
+    loadChatMessages();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedChatId, selectedRole]);
+
+  async function handleSendMessage(event) {
+    event.preventDefault();
+    const body = messageDraft.trim();
+    if (!selectedChatId || !body) return;
+
+    try {
+      await sendChatMessage(selectedRole, selectedChatId, body);
+      setMessageDraft('');
+      const payload = await listChatMessages(selectedRole, selectedChatId);
+      if (payload.actorUserId) {
+        setCurrentUserId(payload.actorUserId);
+      }
+      setChatMessages(payload.items || []);
+    } catch (sendError) {
+      setChatError(sendError.message || 'Failed to send message.');
+    }
+  }
+
+  async function handleSubmitAnnouncement(event) {
+    event.preventDefault();
+    if (!isTeacherView) return;
+
+    setPostError('');
+    setPostingAnnouncement(true);
+    try {
+      const payload = {
+        title: announcementForm.title.trim(),
+        body: announcementForm.body.trim(),
+        priority: announcementForm.priority
+      };
+
+      const attachmentUrl = announcementForm.attachmentUrl.trim();
+      if (attachmentUrl) {
+        payload.attachmentUrl = attachmentUrl;
+        payload.attachmentName = announcementForm.attachmentName.trim() || 'Attachment';
+        payload.attachmentType = announcementForm.attachmentType.trim() || null;
+        payload.attachmentSize = announcementForm.attachmentSize.trim()
+          ? Number(announcementForm.attachmentSize)
+          : null;
+      }
+
+      await createCourseAnnouncement(selectedRole, id, payload);
+      setAnnouncementForm({
+        title: '',
+        body: '',
+        priority: 'NORMAL',
+        attachmentName: '',
+        attachmentUrl: '',
+        attachmentType: '',
+        attachmentSize: ''
+      });
+      setAnnouncementFiles([]);
+      setShowAnnouncementForm(false);
+      await loadCourseData();
+      setActiveTab('content');
+    } catch (submitError) {
+      setPostError(submitError.message || 'Failed to create announcement.');
+    } finally {
+      setPostingAnnouncement(false);
+    }
+  }
+
+  function handleBack() {
+    navigate(withBase('/courses'));
+  }
+
+  function openAnnouncementComposer() {
+    setPostError('');
+    setShowAnnouncementForm(true);
+  }
+
+  function closeAnnouncementComposer() {
+    if (postingAnnouncement) return;
+    setShowAnnouncementForm(false);
+    setPostError('');
+    setAnnouncementFiles([]);
+    setAnnouncementForm({
+      title: '',
+      body: '',
+      priority: 'NORMAL',
+      attachmentName: '',
+      attachmentUrl: '',
+      attachmentType: '',
+      attachmentSize: ''
+    });
+  }
+
+  function handleAnnouncementFileChange(event) {
+    const pickedFiles = Array.from(event.target.files || []);
+    if (!pickedFiles.length) return;
+
+    setAnnouncementFiles((previous) => {
+      const merged = [...previous];
+
+      for (const file of pickedFiles) {
+        const signature = `${file.name}:${file.size}:${file.lastModified}`;
+        const alreadyExists = merged.some((item) => item.signature === signature);
+        if (!alreadyExists) {
+          merged.push({
+            id: `${signature}:${merged.length}`,
+            signature,
+            file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+          });
+        }
+      }
+
+      return merged;
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
+  function removeAnnouncementFile(fileId) {
+    setAnnouncementFiles((previous) => previous.filter((item) => item.id !== fileId));
+  }
+
+  function formatFileSize(size) {
+    if (!Number.isFinite(size)) return '';
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  useEffect(() => {
+    if (!showAnnouncementForm) return;
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        closeAnnouncementComposer();
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showAnnouncementForm, postingAnnouncement]);
+
+  const selectedChat = useMemo(
+    () => courseChats.find((chat) => chat.id === selectedChatId) || null,
+    [courseChats, selectedChatId]
+  );
+
+  const attachmentsByAnnouncement = useMemo(() => {
+    return attachments.reduce((acc, attachment) => {
+      const key = String(attachment.announcementId || 'unlinked');
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(attachment);
+      return acc;
+    }, {});
+  }, [attachments]);
+
+  const announcementTitleById = useMemo(() => {
+    return announcements.reduce((acc, item) => {
+      acc[String(item.id)] = item.title;
+      return acc;
+    }, {});
+  }, [announcements]);
+
+  const linkedAttachmentGroups = useMemo(() => {
+    return Object.entries(attachmentsByAnnouncement)
+      .sort((left, right) => {
+        const leftTitle = left[0] === 'unlinked' ? 'Other files' : (announcementTitleById[left[0]] || left[0]);
+        const rightTitle = right[0] === 'unlinked' ? 'Other files' : (announcementTitleById[right[0]] || right[0]);
+        return leftTitle.localeCompare(rightTitle);
+      });
+  }, [attachmentsByAnnouncement, announcementTitleById]);
+
+  const streamStats = useMemo(
+    () => ({
+      announcements: course?.announcementCount ?? announcements.length,
+      attachments: course?.attachmentCount ?? announcements.reduce((sum, item) => sum + (item.attachments?.length || 0), 0)
+    }),
+    [announcements, course]
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-slate-600">Loading course...</div>
+      </div>
+    );
+  }
 
   if (!course) {
     return (
@@ -58,51 +398,18 @@ export default function CourseDetails({ basePath = '' }) {
     );
   }
 
-  const toggleWeek = (week) => {
-    setExpandedWeeks((prev) => ({
-      ...prev,
-      [week]: !prev[week]
-    }));
-  };
-
-  const handleSendMessage = () => {
-    if (chatInput.trim()) {
-      const newMessage = {
-        id: `msg-${Date.now()}`,
-        sender: 'Ahmed Ben Ali',
-        role: 'STUDENT',
-        content: chatInput,
-        timestamp: new Date().toISOString()
-      };
-      setMessages([...messages, newMessage]);
-      setChatInput('');
-    }
-  };
-
-  const toggleLessonCompletion = (lessonId) => {
-    setCompletedLessons((previous) => {
-      const next = new Set(previous);
-      if (next.has(lessonId)) {
-        next.delete(lessonId);
-      } else {
-        next.add(lessonId);
-      }
-      return next;
-    });
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
       <div
         className="h-40 w-full relative"
         style={{
-          background: `linear-gradient(135deg, ${course.color} 0%, ${course.color}dd 100%)`
+          background: `linear-gradient(135deg, ${cardColor} 0%, ${cardColor}dd 100%)`
         }}
       >
-        <div className="absolute top-4 left-4">
+        <div className="absolute top-4 left-4 z-20">
           <button
-            onClick={() => navigate(withBase('/courses'))}
+            onClick={handleBack}
             className="flex items-center gap-2 text-white hover:bg-white hover:bg-opacity-20 px-4 py-2 rounded-lg transition-all"
           >
             <ArrowLeft size={20} />
@@ -110,28 +417,28 @@ export default function CourseDetails({ basePath = '' }) {
           </button>
         </div>
 
-        <div className="absolute inset-0 flex items-end p-8">
+        <div className="absolute inset-0 flex items-end p-8 pointer-events-none">
           <div className="text-white max-w-7xl mx-auto w-full">
             <p className="text-sm font-semibold opacity-90">{course.code}</p>
             <h1 className="text-4xl font-bold mt-2">{course.title}</h1>
-            <p className="text-white opacity-90 mt-2">👨‍🏫 {course.teacher.name}</p>
+            <p className="text-white opacity-90 mt-2">👨‍🏫 {course.teacher?.name || 'Unknown Teacher'}</p>
           </div>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
+      {/* Tabs */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-8">
+          <div className="flex gap-8 overflow-x-auto">
             {[
-              { id: 'announcements', label: '📢 Announcements', icon: '📢' },
-              { id: 'lessons', label: '📚 Lessons', icon: '📚' },
-              { id: 'chat', label: '💬 Chat', icon: '💬' }
+              { id: 'content', label: 'Content' },
+              { id: 'attachments', label: `Attachments (${streamStats.attachments})` },
+              { id: 'messaging', label: 'Messaging' }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-4 font-semibold border-b-2 transition-all ${
+                className={`px-4 py-4 font-semibold border-b-2 transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-primary text-primary'
                     : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -144,172 +451,289 @@ export default function CourseDetails({ basePath = '' }) {
         </div>
       </div>
 
+      {error ? (
+        <div className="mx-4 mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6 lg:mx-8">
+          {error}
+        </div>
+      ) : null}
+
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-semibold text-slate-900">Course Progress</h2>
-            <span className="text-sm font-semibold text-primary">{progressPercent}%</span>
-          </div>
-          <ProgressBar
-            percent={progressPercent}
-            label={`${completedCount} / ${totalLessons} lessons completed`}
-          />
-        </div>
-
-        {/* ANNOUNCEMENTS TAB */}
-        {activeTab === 'announcements' && (
+        {activeTab === 'content' && (
           <div className="space-y-4">
-            {sortedAnnouncements.length > 0 ? (
-              sortedAnnouncements.map((announcement) => (
-                <AnnouncementCard key={announcement.id} announcement={announcement} />
-              ))
-            ) : (
-              <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
-                <div className="text-4xl mb-3">🔔</div>
-                <p className="text-slate-600">No announcements yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* LESSONS TAB */}
-        {activeTab === 'lessons' && (
-          <div className="space-y-3">
-            {courseLessons.length > 0 ? (
-              courseLessons.map((lesson) => (
-                <div key={lesson.week} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                  {/* Week Header */}
+            {isTeacherView ? (
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-900">Announcements</h3>
                   <button
-                    onClick={() => toggleWeek(lesson.week)}
-                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                    type="button"
+                    onClick={openAnnouncementComposer}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                   >
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      Week {lesson.week}: {lesson.title}
-                    </h3>
-                    <span
-                      className={`transform transition-transform ${
-                        expandedWeeks[lesson.week] ? 'rotate-180' : ''
-                      }`}
-                    >
-                      ▼
-                    </span>
+                    Create Post
                   </button>
-
-                  {/* Week Content */}
-                  {expandedWeeks[lesson.week] && (
-                    <div className="border-t border-slate-200 px-6 py-4 bg-slate-50">
-                      <div className="space-y-2">
-                        {lesson.items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center gap-3 p-3 rounded-lg hover:bg-white transition-colors border border-transparent hover:border-slate-300"
-                          >
-                            {item.type === 'video' ? (
-                              <Play size={20} className="text-red-500" />
-                            ) : item.type === 'pdf' ? (
-                              <FileText size={20} className="text-red-600" />
-                            ) : item.type === 'pptx' ? (
-                              <FileText size={20} className="text-orange-600" />
-                            ) : (
-                              <FileText size={20} className="text-slate-600" />
-                            )}
-                            <div className="flex-1">
-                              <p className="font-medium text-slate-900">{item.name}</p>
-                              <p className="text-xs text-slate-500 capitalize">{item.type} • {item.size}</p>
-                              <div className="mt-1">
-                                <AttachmentPreview attachment={item} />
-                              </div>
-                            </div>
-                            <label className="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={completedLessons.has(item.id)}
-                                onChange={() => toggleLessonCompletion(item.id)}
-                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
-                              />
-                              Mark as completed
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
-                <div className="text-4xl mb-3">📖</div>
-                <p className="text-slate-600">No lessons available yet</p>
-              </div>
-            )}
-          </div>
-        )}
+              </section>
+            ) : null}
 
-        {/* CHAT TAB */}
-        {activeTab === 'chat' && (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col h-screen md:h-96">
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
-              {messages.length > 0 ? (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === 'TEACHER' ? 'justify-start' : 'justify-end'}`}
-                  >
-                    <div
-                      className={`max-w-xs px-4 py-2 rounded-lg ${
-                        msg.role === 'TEACHER'
-                          ? 'bg-blue-100 text-slate-900'
-                          : 'bg-primary text-white'
-                      }`}
-                    >
-                      {msg.role === 'TEACHER' && (
-                        <p className="text-xs font-semibold mb-1">{msg.sender} (Teacher)</p>
-                      )}
-                      <p className="text-sm">{msg.content}</p>
-                      <p
-                        className={`text-xs mt-1 ${
-                          msg.role === 'TEACHER'
-                            ? 'text-slate-600'
-                            : 'text-white text-opacity-70'
-                        }`}
-                      >
-                        {new Date(msg.timestamp).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                  </div>
+            <div className="space-y-4">
+              {announcements.length > 0 ? (
+                announcements.map((announcement) => (
+                  <AnnouncementCard key={announcement.id} announcement={announcement} />
                 ))
               ) : (
-                <div className="text-center text-slate-500">No messages yet. Start the conversation!</div>
+                <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
+                  <div className="text-4xl mb-3">🔔</div>
+                  <p className="text-slate-600">No announcements yet</p>
+                </div>
               )}
             </div>
+          </div>
+        )}
 
-            {/* Input */}
-            <div className="border-t border-slate-200 p-4 bg-white">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Type your message..."
-                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition-all flex items-center gap-2"
-                >
-                  <Send size={18} />
-                </button>
+        {activeTab === 'attachments' && (
+          <div className="space-y-4">
+            {attachments.length > 0 ? (
+              linkedAttachmentGroups.map(([announcementId, list]) => (
+                <section key={announcementId} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    {announcementId === 'unlinked'
+                      ? 'Other files'
+                      : (announcementTitleById[announcementId] || 'Attachment group')}
+                  </h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {list.map((attachment) => (
+                      <AttachmentPreview
+                        key={attachment.id}
+                        attachment={{
+                          ...attachment,
+                          name: attachment.name || attachment.title || 'Attachment'
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
+                <div className="text-4xl mb-3">📎</div>
+                <p className="text-slate-600">No attachments in this course yet</p>
               </div>
-            </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'messaging' && (
+          <div>
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-h-[420px] flex flex-col">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3">
+                {selectedChat?.title || 'Course Chat'}
+              </h4>
+
+              {chatLoading ? <p className="text-sm text-slate-500">Loading messages...</p> : null}
+
+              {!chatLoading && selectedChat ? (
+                <>
+                  <ChatBox
+                    messages={chatMessages}
+                    currentUserId={currentUserId}
+                    isDirect={selectedChat.chatType === 'DIRECT'}
+                  />
+
+                  <form className="message-form mt-3" onSubmit={handleSendMessage}>
+                    <input
+                      type="text"
+                      value={messageDraft}
+                      placeholder="Type your message"
+                      onChange={(event) => setMessageDraft(event.target.value)}
+                    />
+                    <button type="submit">Send</button>
+                  </form>
+                </>
+              ) : null}
+
+              {!chatLoading && !selectedChat ? (
+                <p className="text-sm text-slate-500">No course chat available yet.</p>
+              ) : null}
+            </section>
           </div>
         )}
       </div>
+
+      {showAnnouncementForm && isTeacherView ? (
+        <div
+          className="announcement-modal-backdrop"
+          role="presentation"
+          onClick={closeAnnouncementComposer}
+        >
+          <div
+            className="announcement-modal-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="announcement-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="announcement-modal-header">
+              <div>
+                <p className="announcement-modal-kicker">Teacher post composer</p>
+                <h3 id="announcement-modal-title">Create Post</h3>
+                <p className="announcement-modal-subtitle">
+                  Publish a course announcement and stage local files for the upload pipeline.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="announcement-modal-close"
+                onClick={closeAnnouncementComposer}
+                aria-label="Close composer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form className="announcement-modal-form" onSubmit={handleSubmitAnnouncement}>
+              <div className="announcement-modal-grid">
+                <label className="announcement-field announcement-field-wide">
+                  <span>Title</span>
+                  <input
+                    type="text"
+                    value={announcementForm.title}
+                    onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, title: event.target.value }))}
+                    placeholder="Announcement title"
+                    required
+                  />
+                </label>
+
+                <label className="announcement-field">
+                  <span>Priority</span>
+                  <select
+                    value={announcementForm.priority}
+                    onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, priority: event.target.value }))}
+                  >
+                    <option value="NORMAL">Normal</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                </label>
+
+                <label className="announcement-field announcement-field-wide">
+                  <span>Content</span>
+                  <textarea
+                    value={announcementForm.body}
+                    onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, body: event.target.value }))}
+                    placeholder="Write the announcement..."
+                    required
+                  />
+                </label>
+
+                <div className="announcement-field announcement-field-wide">
+                  <span>Files from your device</span>
+                  <div className="announcement-upload-panel">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      onChange={handleAnnouncementFileChange}
+                      className="announcement-file-input"
+                    />
+                    <p className="announcement-helper-text">
+                      Select multiple files at once. They are previewed here now; backend upload support is still required before they can be sent with the post.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="announcement-field announcement-field-wide">
+                  <div className="announcement-files-header">
+                    <span>Selected files</span>
+                    <span>{announcementFiles.length} staged</span>
+                  </div>
+
+                  {announcementFiles.length ? (
+                    <div className="announcement-file-list">
+                      {announcementFiles.map((item) => (
+                        <div key={item.id} className="announcement-file-item">
+                          <div className="announcement-file-main">
+                            <Paperclip size={14} />
+                            <div>
+                              <strong>{item.name}</strong>
+                              <p>{[item.type || 'Unknown type', formatFileSize(item.size)].filter(Boolean).join(' · ')}</p>
+                            </div>
+                          </div>
+                          <button type="button" className="announcement-file-remove" onClick={() => removeAnnouncementFile(item.id)}>
+                            <Trash2 size={14} />
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="announcement-helper-text">No local files selected yet.</p>
+                  )}
+                </div>
+
+                <div className="announcement-field announcement-field-wide announcement-field-advanced">
+                  <span>External attachment metadata (optional)</span>
+                  <div className="announcement-advanced-grid">
+                    <label>
+                      <span>Attachment URL</span>
+                      <input
+                        type="url"
+                        value={announcementForm.attachmentUrl}
+                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentUrl: event.target.value }))}
+                        placeholder="https://..."
+                      />
+                    </label>
+                    <label>
+                      <span>File name</span>
+                      <input
+                        type="text"
+                        value={announcementForm.attachmentName}
+                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentName: event.target.value }))}
+                        placeholder="File title"
+                      />
+                    </label>
+                    <label>
+                      <span>MIME type</span>
+                      <input
+                        type="text"
+                        value={announcementForm.attachmentType}
+                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentType: event.target.value }))}
+                        placeholder="application/pdf"
+                      />
+                    </label>
+                    <label>
+                      <span>File size in bytes</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={announcementForm.attachmentSize}
+                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentSize: event.target.value }))}
+                        placeholder="102400"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {postError ? <p className="announcement-modal-error">{postError}</p> : null}
+
+              <div className="announcement-modal-footer">
+                <button type="button" className="announcement-modal-secondary" onClick={closeAnnouncementComposer} disabled={postingAnnouncement}>
+                  Cancel
+                </button>
+                <button type="submit" className="announcement-modal-primary" disabled={postingAnnouncement}>
+                  {postingAnnouncement ? 'Posting...' : 'Post announcement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {chatError ? (
+        <div className="mx-4 mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 sm:mx-6 lg:mx-8">
+          {chatError}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -14,6 +14,8 @@ import AdminPage from "./app/admin/AdminPage";
 import AddUserPage from "./app/admin/AddUserPage";
 import ViewUsersPage from "./app/admin/ViewUsersPage";
 import AssignCoursesPage from "./app/admin/AssignCoursesPage";
+import AcademicSetupPage from "./app/admin/AcademicSetupPage";
+import FeedbackPage from "./app/feedback/FeedbackPage";
 
 function AppRoutes() {
   const { token } = useAuth();
@@ -27,9 +29,11 @@ function AppRoutes() {
       <Route path="/groups" element={<GroupsPage />} />
       <Route path="/courses" element={<CoursesPage />} />
       <Route path="/courses/:id" element={<CourseDetails />} />
+      <Route path="/feedback" element={<FeedbackPage />} />
       <Route path="/admin/add-user" element={<AddUserPage />} />
       <Route path="/admin/view-users" element={<ViewUsersPage />} />
       <Route path="/admin/assign-courses" element={<AssignCoursesPage />} />
+      <Route path="/admin/academic-setup" element={<AcademicSetupPage />} />
       <Route path="*" element={<Navigate to={target} replace />} />
     </Routes>
   );
