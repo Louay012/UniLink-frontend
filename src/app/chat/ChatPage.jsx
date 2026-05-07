@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import ChatBox from "../../components/ChatBox";
-import { Paperclip, Pencil, Send, X } from 'lucide-react';
+import { Paperclip, Pencil, Send, X, Trash2, MessageCircle, Users, FileText, ArrowLeft, PanelRightClose, PanelRight } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import useMessaging from "../../hooks/useMessaging";
 import { useNavigate } from "react-router-dom";
@@ -97,6 +97,10 @@ export default function ChatPage() {
   const [chatView, setChatView] = useState("DIRECT");
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [newChatSearch, setNewChatSearch] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState(null);
+  const [rightPanelTab, setRightPanelTab] = useState("members");
+  const [isMembersPanelOpen, setIsMembersPanelOpen] = useState(true);
 
   const directChats = useMemo(
     () => filteredChats.filter((chat) => chat.chatType === "DIRECT"),
@@ -198,13 +202,27 @@ export default function ChatPage() {
     }
   }
 
-  async function handleDeleteMessage(messageId) {
+  function handleDeleteMessage(messageId) {
+    setMessageToDelete(messageId);
+    setDeleteConfirmOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!messageToDelete) return;
     try {
-      await removeMessage(messageId);
+      await removeMessage(messageToDelete);
       setError("");
     } catch (e) {
       setError(e.message || "Could not delete message.");
+    } finally {
+      setDeleteConfirmOpen(false);
+      setMessageToDelete(null);
     }
+  }
+
+  function cancelDelete() {
+    setDeleteConfirmOpen(false);
+    setMessageToDelete(null);
   }
 
   function handlePickFiles(event) {
@@ -219,59 +237,52 @@ export default function ChatPage() {
       {error ? <div className="error-banner">{error}</div> : null}
 
       <article className="card messenger-card">
-        <div className="messenger-shell-header">
-          <p className="messenger-shell-title">Messenger</p>
-          <span className="messenger-shell-subtitle">{filteredChats.length} conversations</span>
-        </div>
-
-        <div className="messaging-layout">
-          <aside className="chat-list-pane">
-            <div className="chat-list-head">
-              <h3>Conversations</h3>
-              <span>{visibleChats.length} visible</span>
-            </div>
-
+        <div className="messenger-top-bar">
+          <div className="messenger-search-wrap">
             <input
               type="text"
               className="messenger-search"
-              placeholder="Search chats or members"
+              placeholder={chatView === "DIRECT" ? "Search conversations..." : "Search channels..."}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
+          </div>
 
-            {chatView === "DIRECT" ? (
-              <button
-                type="button"
-                className="new-chat-btn"
-                onClick={() => setIsNewChatModalOpen(true)}
-              >
-                New Chat
-              </button>
-            ) : null}
+          <div className="messenger-view-tabs">
+            <button
+              type="button"
+              className={chatView === "DIRECT" ? "active" : ""}
+              onClick={() => setChatView("DIRECT")}
+            >
+              Direct
+            </button>
+            <button
+              type="button"
+              className={chatView === "CHANNEL" ? "active" : ""}
+              onClick={() => setChatView("CHANNEL")}
+            >
+              Channels
+            </button>
+          </div>
 
-            <div className="chat-view-switch" role="tablist" aria-label="Chat views">
-              <button
-                type="button"
-                className={chatView === "DIRECT" ? "active" : ""}
-                onClick={() => setChatView("DIRECT")}
-              >
-                Direct
-              </button>
-              <button
-                type="button"
-                className={chatView === "CHANNEL" ? "active" : ""}
-                onClick={() => setChatView("CHANNEL")}
-              >
-                Channels
-              </button>
-            </div>
+          {chatView === "DIRECT" ? (
+            <button
+              type="button"
+              className="new-chat-btn"
+              onClick={() => setIsNewChatModalOpen(true)}
+              aria-label="New Chat"
+            >
+              <MessageCircle size={16} />
+            </button>
+          ) : null}
+        </div>
 
+        <div className={`messaging-layout ${isMembersPanelOpen ? '' : 'collapsed'}`}>
+          <aside className="chat-list-pane">
             <div className="chat-list">
-              {chatView === "DIRECT" ? <p className="chat-section-title">Direct Messages</p> : null}
-              {chatView === "CHANNEL" ? <p className="chat-section-title">Class and Course Chats</p> : null}
               {visibleChats.map((chat) => renderChatItem(chat))}
               {!visibleChats.length ? (
-                <p>{chatView === "DIRECT" ? "No direct chats yet." : "No channel chats available."}</p>
+                <p className="chat-empty-state">{chatView === "DIRECT" ? "No direct chats yet." : "No channel chats available."}</p>
               ) : null}
             </div>
           </aside>
@@ -282,6 +293,14 @@ export default function ChatPage() {
             ) : (
               <>
                 <div className="conversation-header">
+                  <button
+                    type="button"
+                    className="mobile-back-btn"
+                    onClick={() => setSelectedChatId(null)}
+                    aria-label="Back to chats"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
                   <div className="conversation-meta">
                     <span className="conversation-avatar">{getInitials(selectedChat.title)}</span>
                     <div>
@@ -293,6 +312,14 @@ export default function ChatPage() {
                   </div>
 
                   <div className="conversation-actions">
+                    <button
+                      type="button"
+                      className="toggle-panel-btn"
+                      onClick={() => setIsMembersPanelOpen(!isMembersPanelOpen)}
+                      aria-label={isMembersPanelOpen ? "Hide panel" : "Show panel"}
+                    >
+                      {isMembersPanelOpen ? <PanelRightClose size={16} /> : <PanelRight size={16} />}
+                    </button>
                     <span className={`chat-pill ${isSelectedChatDirect ? "direct" : "channel"}`}>
                       {isSelectedChatDirect ? "Direct" : "Channel"}
                     </span>
@@ -365,40 +392,89 @@ export default function ChatPage() {
             )}
           </section>
 
-          <aside className="members-pane">
-            {selectedChat ? (
-              <>
-                <div className="members-header">
-                  <h4>{isSelectedChatDirect ? "Profile" : "Group Info"}</h4>
-                  <small>{isSelectedChatDirect ? "Direct chat" : `${selectedChat.members?.length || 0} members`}</small>
+          {isMembersPanelOpen && selectedChat ? (
+            <aside className="members-pane">
+                <div className="panel-tabs">
+                  <button
+                    type="button"
+                    className={rightPanelTab === "members" ? "active" : ""}
+                    onClick={() => setRightPanelTab("members")}
+                  >
+                    <Users size={14} /> Members
+                  </button>
+                  <button
+                    type="button"
+                    className={rightPanelTab === "files" ? "active" : ""}
+                    onClick={() => setRightPanelTab("files")}
+                  >
+                    <FileText size={14} /> Files
+                  </button>
                 </div>
 
-                {isSelectedChatDirect ? (
-                  <div className="member-profile-card">
-                    <span className="member-avatar profile">{getInitials(counterpart?.name || "User")}</span>
-                    <div className="member-meta">
-                      <div className="member-name">{counterpart?.name || "Unknown user"}</div>
-                      <div className="member-role">{counterpart?.role || "Member"}</div>
-                    </div>
-                  </div>
-                ) : null}
+                <div className="panel-content">
+                  {rightPanelTab === "members" ? (
+                    <>
+                      <div className="members-header">
+                        <h4>{isSelectedChatDirect ? "Profile" : "Group Info"}</h4>
+                        <small>{isSelectedChatDirect ? "Direct chat" : `${selectedChat.members?.length || 0} members`}</small>
+                      </div>
 
-                <div className="members-list">
-                  {selectedChat.members?.map((m) => (
-                    <div key={m.id} className="member-item">
-                      <span className="member-avatar">{getInitials(m.name)}</span>
-                      <div className="member-meta">
-                        <div className="member-name">{m.name}</div>
-                        <div className="member-role">{m.role || 'Member'}</div>
+                      {isSelectedChatDirect ? (
+                        <div className="member-profile-card">
+                          <span className="member-avatar profile">{getInitials(counterpart?.name || "User")}</span>
+                          <div className="member-meta">
+                            <div className="member-name">{counterpart?.name || "Unknown user"}</div>
+                            <div className="member-role">{counterpart?.role || "Member"}</div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="members-list">
+                        {selectedChat.members?.map((m) => (
+                          <div key={m.id} className="member-item">
+                            <span className="member-avatar">{getInitials(m.name)}</span>
+                            <div className="member-meta">
+                              <div className="member-name">{m.name}</div>
+                              <div className="member-role">{m.role || 'Member'}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="files-panel">
+                      <div className="files-header">
+                        <h4>Shared Files</h4>
+                        <small>{messages.filter(m => m.attachments?.length).reduce((acc, m) => acc + m.attachments.length, 0)} files</small>
+                      </div>
+                      <div className="files-list">
+                        {messages
+                          .filter(m => m.attachments?.length)
+                          .flatMap(m => m.attachments.map(a => ({ ...a, messageId: m.id })))
+                          .map((attachment, idx) => (
+                            <a
+                              key={`file-${idx}`}
+                              href={attachment.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="file-item"
+                            >
+                              <FileText size={16} />
+                              <div className="file-meta">
+                                <span className="file-name">{attachment.fileName || "Attachment"}</span>
+                                <small>{attachment.mimeType || "file"}</small>
+                              </div>
+                            </a>
+                          ))}
+                        {!messages.some(m => m.attachments?.length) ? (
+                          <p className="chat-empty-state">No files shared yet.</p>
+                        ) : null}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </>
-            ) : (
-              <p className="subtitle">Select a chat to view members.</p>
-            )}
-          </aside>
+            </aside>
+          ) : null}
         </div>
       </article>
 
@@ -466,6 +542,22 @@ export default function ChatPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteConfirmOpen ? (
+        <div className="delete-confirm-backdrop" onClick={cancelDelete}>
+          <div className="delete-confirm-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-confirm-header">
+              <Trash2 size={20} color="#dc2626" />
+              <h4>Delete Message</h4>
+            </div>
+            <p className="delete-confirm-text">Are you sure you want to delete this message? This action cannot be undone.</p>
+            <div className="delete-confirm-actions">
+              <button type="button" className="delete-confirm-cancel" onClick={cancelDelete}>Cancel</button>
+              <button type="button" className="delete-confirm-delete" onClick={confirmDelete}>Delete</button>
+            </div>
           </div>
         </div>
       ) : null}

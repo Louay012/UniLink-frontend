@@ -1,4 +1,5 @@
 import React from "react";
+import { Pencil, Trash2, PencilLine } from "lucide-react";
 import { API_BASE } from "../services/api";
 
 const BACKEND_BASE = API_BASE.replace(/\/api$/, "");
@@ -51,7 +52,7 @@ export default function MessageItem({
 
       <div className={`message-item ${isMine ? "mine" : ""}`}>
         {!isMine && !isDirect ? <strong>{senderName}</strong> : null}
-        {message.isDeleted ? <p className="message-deleted">Message deleted</p> : <p>{message.body}</p>}
+        {message.isDeleted ? <p className="message-deleted">{senderName} deleted a message</p> : <p>{message.body}</p>}
 
         {Array.isArray(message.attachments) && message.attachments.length ? (
           <div className="message-attachments">
@@ -73,14 +74,18 @@ export default function MessageItem({
         <div className="message-meta-row">
           <small>
             {createdLabel}
-            {message.isEdited ? " · edited" : ""}
+            {message.isEdited ? <span> · edited <PencilLine size={10} /></span> : ""}
             {isMine && message.isRead ? " · seen" : ""}
           </small>
 
           {isMine && !message.isDeleted ? (
             <div className="message-actions">
-              <button type="button" onClick={() => onEdit?.(message)} disabled={isEditing}>Edit</button>
-              <button type="button" onClick={() => onDelete?.(message.id)}>Delete</button>
+              <button type="button" onClick={() => onEdit?.(message)} disabled={isEditing} title="Edit">
+                <Pencil size={12} />
+              </button>
+              <button type="button" onClick={() => onDelete?.(message.id)} title="Delete">
+                <Trash2 size={12} />
+              </button>
             </div>
           ) : null}
         </div>

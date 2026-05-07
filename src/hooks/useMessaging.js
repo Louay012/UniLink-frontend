@@ -353,7 +353,9 @@ export default function useMessaging(selectedRole) {
       setMessages((previous) =>
         sortMessagesAsc(
           previous.map((item) =>
-            item.id === message.id ? { ...item, ...normalizeMessage(message), isDeleted: true, body: "" } : item
+            item.id === message.id
+              ? { ...item, ...normalizeMessage(message), isDeleted: true, body: "", sender: message.sender || item.sender }
+              : item
           )
         )
       );
