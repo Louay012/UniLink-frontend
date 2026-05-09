@@ -12,7 +12,9 @@ import {
   ChevronDown,
   ChevronRight,
   GraduationCap,
-  LogOut
+  LogOut,
+  AlertCircle,
+  User
 } from 'lucide-react';
 
 const getLinks = (isAdmin) => {
@@ -295,6 +297,24 @@ export default function Sidebar() {
             >
               <Users size={18} className="nav-icon" />
               {isOpen && <span className="nav-label">Groups</span>}
+            </NavLink>
+
+            <NavLink
+              to="/feedback"
+              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
+              title={!isOpen ? 'Feedback' : undefined}
+            >
+              <AlertCircle size={18} className="nav-icon" />
+              {isOpen && <span className="nav-label">Feedback</span>}
+            </NavLink>
+
+            <NavLink
+              to="/profile"
+              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
+              title={!isOpen ? 'Profile' : undefined}
+            >
+              <User size={18} className="nav-icon" />
+              {isOpen && <span className="nav-label">Profile</span>}
             </NavLink>
           </>
         )}
