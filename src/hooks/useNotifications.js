@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { listCourses, listCourseAnnouncements, listCourseAttachments } from "../services/course.service";
 import { listChats } from "../services/chat.service";
+import { connectSocket } from "../services/socket";
 
 const STORAGE_KEY = "unilink-notif-seen";
 
@@ -23,6 +24,32 @@ export default function useNotifications(selectedRole) {
   const [notifications, setNotifications] = useState([]);
   const [seen, setSeen] = useState(loadSeen);
   const [loading, setLoading] = useState(false);
+
+  // Real-time notifications via Socket.IO
+  useEffect(() => {
+    const socket = connectSocket();
+    if (!socket) return;
+
+    function handleNotification(notif) {
+      if (!notif || !notif.id) return;
+      setNotifications((prev) => {
+        // Avoid duplicates
+        if (prev.some((n) => n.id === notif.id)) return prev;
+        return [{ ...notif, read: false }, ...prev];
+      });
+    }
+
+    socket.on("notification", handleNotification);
+
+    // Join user's personal room for notifications
+    if (selectedRole?.userId) {
+      socket.emit("user:join", { userId: selectedRole.userId });
+    }
+
+    return () => {
+      socket.off("notification", handleNotification);
+    };
+  }, [selectedRole?.userId]);
 
   useEffect(() => {
     let active = true;

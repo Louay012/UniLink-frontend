@@ -302,88 +302,7 @@ body.sidebar-collapsed .sidebar-footer .sidebar-logout {
   }
 }
 
-/* Mobile bottom navigation (shown when JS sets `isMobile`) */
-@media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  /* Ensure page content has space for the fixed bottom nav */
-  .page-shell {
-    padding-bottom: 76px;
-  }
-
-  .mobile-bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    gap: 6px;
-    padding: 6px 10px;
-    background: linear-gradient(180deg, #ffffff, #f8fafc);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -8px 24px rgba(2,6,23,0.06);
-    z-index: 70;
-  }
-
-  .mobile-bottom-nav .mobile-nav-link {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    color: var(--muted);
-    text-decoration: none;
-    font-weight: 700;
-    padding: 6px 8px;
-    min-width: 56px;
-    border-radius: 10px;
-  }
-
-  .mobile-bottom-nav .mobile-nav-link .nav-icon {
-    margin: 0;
-    color: inherit;
-  }
-
-  .mobile-bottom-nav .mobile-nav-link .nav-label {
-    font-size: 0.66rem;
-    line-height: 1;
-    color: inherit;
-  }
-
-  .mobile-bottom-nav .mobile-nav-link.active {
-    color: #052e16;
-    background: linear-gradient(120deg, #e6f9ec, #d1f7d7);
-  }
-
-/* Hide the desktop sidebar on small screens - component also applies style inline */
-   .app-sidebar {
-     display: none;
-   }
-
-   /* Show message actions on touch devices */
-   .message-actions {
-     opacity: 1;
-     transform: none;
-   }
-
-   .message-actions button {
-     padding: 0.35rem 0.7rem;
-   }
-
-   /* Hide right panel on mobile when chat is selected */
-   .members-pane {
-     display: none;
-   }
-
-   .conversation {
-     grid-column: 1 / -1;
-   }
-}
+/* Mobile bottom navigation styles are now in component */
 
 .announcement-modal-backdrop {
   position: fixed;
@@ -1028,16 +947,6 @@ body.sidebar-collapsed .sidebar-footer .sidebar-logout {
   background: #f1f5f9;
   border-color: rgba(148, 163, 184, 0.5);
   transform: scale(1.05);
-}
-
-@media (max-width: 1100px) {
-  .mobile-back-btn {
-    display: inline-flex;
-  }
-  
-  .conversation-header .mobile-back-btn {
-    display: inline-flex;
-  }
 }
 
 .course-item {
@@ -2118,7 +2027,7 @@ body.sidebar-collapsed .sidebar-footer .sidebar-logout {
 
 .message-actions button:hover {
   background: rgba(59, 130, 246, 0.12);
-  color: #1d4ed;
+  color: #0939bd;
 }
 
 .message-actions button:last-child:hover {
@@ -3050,91 +2959,7 @@ body.sidebar-collapsed .sidebar-footer .sidebar-logout {
   gap: 0.55rem;
 }
 
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .app-sidebar {
-    grid-template-rows: auto auto auto;
-  }
-
-  .app-sidebar nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .layout,
-  .grid,
-  .messaging-layout,
-  .auth-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dashboard-work-metrics,
-  .dashboard-work-grid,
-  .dashboard-action-grid,
-  .dashboard-course-grid,
-  .dashboard-health-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-list-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .direct-form,
-  .admin-form-grid,
-  .groups-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .page-shell {
-    padding: 1rem;
-  }
-
-  .messenger-page-shell {
-    height: calc(100vh - 2rem);
-    max-height: calc(100vh - 2rem);
-  }
-
-  /* Mobile toggle removed — mobile nav handled by bottom nav */
-
-  .hero {
-    flex-direction: column;
-  }
-
-  /* Messaging adjustments for smaller screens */
-  .messaging-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .message-item {
-    max-width: min(85%, 470px);
-  }
-
-  /* hide members pane on small screens */
-  .members-pane {
-    display: none;
-  }
-}
 
 /* ==========================================================================
    TOP NAVBAR
@@ -4061,5 +3886,169 @@ body.sidebar-collapsed .sidebar-footer .sidebar-logout {
   .dash-stats { grid-template-columns: 1fr; }
   .dash-course-grid { grid-template-columns: 1fr; }
   .dash-quick-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Desktop (over 1100px) ── */
+
+/* ── Tablet and Mobile ── */
+@media (max-width: 1100px) {
+  /* App shell - single column on mobile */
+  .app-shell,
+  body.sidebar-collapsed .app-shell {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Hide sidebar on mobile - bottom nav shows instead */
+  .app-sidebar {
+    display: none;
+  }
+  
+  /* Show the mobile drawer when toggled */
+  .app-sidebar.mobile-drawer {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Page shell full width */
+  .page-shell {
+    padding: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* Hide desktop-only elements on mobile */
+  .sidebar-toggle {
+    display: none;
+  }
+  
+  /* Mobile bottom navigation */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #1e293b;
+    z-index: 100;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+    justify-content: space-around;
+    padding: 0.5rem 0;
+    overflow-x: auto;
+  }
+  
+  .mobile-nav-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.75rem;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    transition: color 0.2s ease;
+  }
+  
+  .mobile-nav-link.active {
+    color: #4ade80;
+  }
+  
+  .app-content {
+    /* override height so there is room to scroll without being hidden by bottom nav */
+    padding-bottom: 60px; 
+  }
+  
+  /* Dashboard grids to single column */
+  .layout,
+  .grid,
+  .auth-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-grid,
+  .dashboard-work-metrics,
+  .dashboard-work-grid,
+  .dashboard-action-grid,
+  .dashboard-course-grid,
+  .dashboard-health-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .direct-form,
+  .admin-form-grid,
+  .groups-toolbar {
+    grid-template-columns: 1fr;
+  }
+  
+  .dashboard-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .hero {
+    flex-direction: column;
+  }
+  
+  /* ── Mobile Messaging ── */
+  .messenger-page-shell {
+    height: auto;
+    min-height: calc(100vh - 120px);
+    padding: 0.5rem;
+  }
+  
+  .messenger-card {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 140px);
+  }
+  
+  .messaging-layout {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  .chat-list-pane {
+    flex: 0 0 200px;
+    border-right: none;
+    border-bottom: 1px solid rgba(148,163,184,0.2);
+  }
+  
+  .conversation {
+    flex: 1;
+    display: none;
+  }
+  
+  .messenger-page-shell.has-selected-chat .chat-list-pane {
+    display: none;
+  }
+  
+  .messenger-page-shell.has-selected-chat .conversation {
+    display: flex;
+  }
+  
+  .members-pane {
+    display: none;
+  }
+  
+  /* Mobile back button */
+  .mobile-back-btn {
+    display: inline-flex;
+  }
+  
+  .conversation-header .mobile-back-btn {
+    display: inline-flex;
+  }
+  
+  /* Make messenger top bar compact */
+  .messenger-top-bar {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.4rem;
+  }
+  
+  .messenger-search-wrap {
+    flex: 1 1 100%;
+  }
 }
 
