@@ -8,7 +8,8 @@ import {
   sendMessageWithFiles,
   editMessage,
   deleteMessage,
-  markChatRead
+  markChatRead,
+  deleteChat
 } from "../services/chat.service";
 import { connectSocket } from "../services/socket";
 
@@ -80,8 +81,17 @@ export default function useMessaging(selectedRole) {
   const [selectedContactId, setSelectedContactId] = useState("");
   const [directMessageDraft, setDirectMessageDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [debouncedMessageSearch, setDebouncedMessageSearch] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedMessageSearch(messageSearchQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [messageSearchQuery]);
 
   const selectedChat = useMemo(
     () => chats.find((chat) => chat.id === selectedChatId) || null,
@@ -129,14 +139,14 @@ export default function useMessaging(selectedRole) {
     });
   }
 
-  async function refreshMessages(chatId) {
+  async function refreshMessages(chatId, query = debouncedMessageSearch) {
     if (!chatId) {
       setMessages([]);
       setMessagePaging({ hasOlder: false, nextBefore: null, isLoadingOlder: false });
       return;
     }
 
-    const payload = await listMessages(selectedRole, chatId, { limit: MESSAGE_PAGE_SIZE });
+    const payload = await listMessages(selectedRole, chatId, { limit: MESSAGE_PAGE_SIZE, q: query });
     if (payload.actorUserId) {
       setCurrentUserId(payload.actorUserId);
     }
@@ -158,7 +168,8 @@ export default function useMessaging(selectedRole) {
     try {
       const payload = await listMessages(selectedRole, selectedChatId, {
         limit: MESSAGE_PAGE_SIZE,
-        before: messagePaging.nextBefore
+        before: messagePaging.nextBefore,
+        q: debouncedMessageSearch
       });
 
       const olderItems = sortMessagesAsc((payload.items || []).map(normalizeMessage));
@@ -235,6 +246,13 @@ export default function useMessaging(selectedRole) {
     if (!selectedChat || !messageId) return;
     await deleteMessage(selectedRole, selectedChat.id, messageId);
     await refreshMessages(selectedChat.id);
+  }
+
+  async function removeChat() {
+    if (!selectedChatId) return;
+    await deleteChat(selectedRole, selectedChatId);
+    setSelectedChatId(null);
+    await refreshChats();
   }
 
   function beginEditMessage(message) {
@@ -422,7 +440,7 @@ export default function useMessaging(selectedRole) {
 
     async function loadMessagesAndReadState() {
       try {
-        await refreshMessages(selectedChatId);
+        await refreshMessages(selectedChatId, debouncedMessageSearch);
         if (selectedChatId) {
           await markChatRead(selectedRole, selectedChatId);
           await refreshChats();
@@ -439,7 +457,7 @@ export default function useMessaging(selectedRole) {
     return () => {
       active = false;
     };
-  }, [selectedChatId, selectedRole?.value, selectedRole?.userId]);
+  }, [selectedChatId, selectedRole?.value, selectedRole?.userId, debouncedMessageSearch]);
 
   return {
     chats,
@@ -469,8 +487,11 @@ export default function useMessaging(selectedRole) {
     cancelEditMessage,
     saveEditedMessage,
     removeMessage,
+    removeChat,
     searchQuery,
     setSearchQuery,
+    messageSearchQuery,
+    setMessageSearchQuery,
     isSending,
     sendCurrentMessage,
     createDirectChat,

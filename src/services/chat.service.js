@@ -19,10 +19,18 @@ async function listContacts(selectedRole) {
   return apiRequest("/messaging/contacts", selectedRole);
 }
 
+async function searchUsers(selectedRole, query) {
+  const q = encodeURIComponent(query || "");
+  return apiRequest(`/users/search?q=${q}`, selectedRole);
+}
+
 async function listMessages(selectedRole, chatId, options = {}) {
   const params = new URLSearchParams();
   if (options.before) {
     params.set("before", options.before);
+  }
+  if (options.q) {
+    params.set("q", options.q);
   }
   if (Number.isFinite(Number(options.limit))) {
     params.set("limit", String(Math.trunc(Number(options.limit))));
@@ -98,14 +106,22 @@ async function markChatRead(selectedRole, chatId) {
   });
 }
 
+async function deleteChat(selectedRole, chatId) {
+  return apiRequest(`/chats/${chatId}`, selectedRole, {
+    method: "DELETE"
+  });
+}
+
 export {
   listChats,
   listContacts,
+  searchUsers,
   listMessages,
   startDirectChat,
   sendMessage,
   sendMessageWithFiles,
   editMessage,
   deleteMessage,
-  markChatRead
+  markChatRead,
+  deleteChat
 };

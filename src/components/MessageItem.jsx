@@ -25,6 +25,37 @@ function resolveAttachmentUrl(value) {
   return `${BACKEND_BASE}/${value}`;
 }
 
+async function downloadAttachment(url, fileName = "attachment") {
+  const token = localStorage.getItem("unilink_token");
+  const role = localStorage.getItem("unilink_role");
+  const userId = localStorage.getItem("unilink_userId");
+
+  const headers = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(role ? { "x-unilink-role": role } : {}),
+    ...(userId ? { "x-unilink-user-id": userId } : {})
+  };
+
+  try {
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    console.error("Download failed:", err);
+    alert("Failed to download file. Please try again.");
+  }
+}
+
 export default function MessageItem({
   message,
   currentUserId,
@@ -57,16 +88,15 @@ export default function MessageItem({
         {Array.isArray(message.attachments) && message.attachments.length ? (
           <div className="message-attachments">
             {message.attachments.map((attachment) => (
-              <a
+              <button
                 key={attachment.id}
-                href={resolveAttachmentUrl(attachment.fileUrl)}
-                target="_blank"
-                rel="noreferrer"
+                type="button"
+                onClick={() => downloadAttachment(resolveAttachmentUrl(attachment.fileUrl), attachment.fileName || "attachment")}
                 className="message-attachment-link"
               >
                 <span>{attachment.fileName || "Attachment"}</span>
                 <small>{[attachment.mimeType || "file", readableFileSize(attachment.fileSize)].filter(Boolean).join(" · ")}</small>
-              </a>
+              </button>
             ))}
           </div>
         ) : null}
