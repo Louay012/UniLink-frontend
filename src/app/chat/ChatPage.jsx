@@ -103,15 +103,20 @@ export default function ChatPage() {
     filteredChats,
     contacts,
     currentUserId,
+    typingUsers,
+    onlineUserIds,
     selectedChat,
     selectedChatId,
     setSelectedChatId,
     messages,
+    messageSearchResults,
+    focusedMessageId,
     hasOlderMessages,
     isLoadingOlderMessages,
     loadOlderMessages,
     messageDraft,
-    setMessageDraft,
+    handleMessageDraftChange,
+    replyTargetMessage,
     messageFiles,
     addMessageFiles,
     removeMessageFile,
@@ -123,7 +128,9 @@ export default function ChatPage() {
     editingBody,
     setEditingBody,
     beginEditMessage,
+    beginReplyMessage,
     cancelEditMessage,
+    cancelReplyMessage,
     saveEditedMessage,
     removeMessage,
     removeChat,
@@ -134,6 +141,7 @@ export default function ChatPage() {
     isSending,
     sendCurrentMessage,
     createDirectChat,
+    jumpToMessage,
     error,
     setError
   } = useMessaging(selectedRole);
@@ -164,6 +172,23 @@ export default function ChatPage() {
     if (!selectedChat || !isSelectedChatDirect) return null;
     return (selectedChat.members || []).find((member) => String(member.id) !== String(currentUserId)) || null;
   }, [selectedChat, isSelectedChatDirect, currentUserId]);
+  const onlineMemberIds = useMemo(() => new Set((onlineUserIds || []).map((id) => String(id))), [onlineUserIds]);
+  const typingLabel = useMemo(() => {
+    if (!typingUsers.length) {
+      return "";
+    }
+
+    const names = typingUsers.map((entry) => entry.userName || "Someone");
+    if (names.length === 1) {
+      return `${names[0]} is typing...`;
+    }
+
+    if (names.length === 2) {
+      return `${names[0]} and ${names[1]} are typing...`;
+    }
+
+    return `${names[0]} and ${names.length - 1} others are typing...`;
+  }, [typingUsers]);
 
   useEffect(() => {
     if (!selectedChatId) {
@@ -324,6 +349,20 @@ export default function ChatPage() {
     }
   }
 
+  function handleDropFiles(event) {
+    event.preventDefault();
+    addMessageFiles(event.dataTransfer.files || []);
+  }
+
+  async function handleSearchResultClick(message) {
+    try {
+      await jumpToMessage(message);
+      setError("");
+    } catch (jumpError) {
+      setError(jumpError.message || "Could not jump to that message.");
+    }
+  }
+
   return (
     <div className={`page-shell messenger-page-shell ${selectedChatId ? 'has-selected-chat' : ''}`}>
       {error ? <div className="error-banner">{error}</div> : null}
@@ -400,6 +439,12 @@ export default function ChatPage() {
                       <small className="conversation-sub">
                         {isSelectedChatDirect ? "Private conversation" : (selectedChat.members || []).map((member) => member.name).join(" · ") || "Members"}
                       </small>
+                      {isSelectedChatDirect && counterpart ? (
+                        <small className="conversation-presence">
+                          <span className={`presence-dot ${onlineMemberIds.has(String(counterpart.id)) ? "online" : "offline"}`} />
+                          {onlineMemberIds.has(String(counterpart.id)) ? "Online now" : "Offline"}
+                        </small>
+                      ) : null}
                     </div>
                   </div>
 
@@ -440,11 +485,15 @@ export default function ChatPage() {
                   isDirect={selectedChat.chatType === "DIRECT"}
                   onEditMessage={beginEditMessage}
                   onDeleteMessage={handleDeleteMessage}
+                  onReplyMessage={beginReplyMessage}
                   editingMessageId={editingMessageId}
+                  highlightedMessageId={focusedMessageId}
                   hasOlderMessages={hasOlderMessages}
                   isLoadingOlderMessages={isLoadingOlderMessages}
                   onLoadOlderMessages={loadOlderMessages}
                 />
+
+                {typingLabel ? <div className="typing-banner">{typingLabel}</div> : null}
 
                 {editingMessageId ? (
                   <form className="message-edit-form" onSubmit={handleSaveEditedMessage}>
@@ -464,6 +513,18 @@ export default function ChatPage() {
                   </form>
                 ) : null}
 
+                {replyTargetMessage ? (
+                  <div className="message-reply-banner">
+                    <div>
+                      <strong>Replying to {replyTargetMessage.sender?.name || "message"}</strong>
+                      <p>{replyTargetMessage.body || "Attachment or deleted message"}</p>
+                    </div>
+                    <button type="button" className="message-ghost-btn" onClick={cancelReplyMessage}>
+                      <X size={14} /> Cancel
+                    </button>
+                  </div>
+                ) : null}
+
                 {messageFiles.length ? (
                   <div className="message-file-list">
                     {messageFiles.map((file, index) => (
@@ -477,7 +538,7 @@ export default function ChatPage() {
                   </div>
                 ) : null}
 
-                <form className="message-form" onSubmit={handleSendMessage}>
+                <form className="message-form" onSubmit={handleSendMessage} onDragOver={(event) => event.preventDefault()} onDrop={handleDropFiles}>
                   <input ref={fileInputRef} type="file" multiple className="hidden-file-input" onChange={handlePickFiles} />
                   <button type="button" className="message-attach-btn" onClick={() => fileInputRef.current?.click()}>
                     <Paperclip size={16} />
@@ -486,7 +547,7 @@ export default function ChatPage() {
                     type="text"
                     value={messageDraft}
                     placeholder="Type your message"
-                    onChange={(event) => setMessageDraft(event.target.value)}
+                    onChange={(event) => handleMessageDraftChange(event.target.value)}
                   />
                   <button type="submit" disabled={isSending}>
                     <Send size={14} /> {isSending ? "Sending..." : "Send"}
@@ -535,7 +596,10 @@ export default function ChatPage() {
                       <div className="members-list">
                         {selectedChat.members?.map((m) => (
                           <div key={m.id} className="member-item">
-                            <span className="member-avatar">{getInitials(m.name)}</span>
+                            <span className="member-avatar-wrap">
+                              <span className="member-avatar">{getInitials(m.name)}</span>
+                              <span className={`presence-dot member ${onlineMemberIds.has(String(m.id)) ? "online" : "offline"}`} />
+                            </span>
                             <div className="member-meta">
                               <div className="member-name">{m.name}</div>
                               <div className="member-role">{m.role || 'Member'}</div>
@@ -587,6 +651,23 @@ export default function ChatPage() {
                           onChange={(event) => setMessageSearchQuery(event.target.value)}
                           style={{ width: "100%", padding: "0.5rem", borderRadius: "0.25rem", border: "1px solid #ccc", fontSize: "0.875rem" }}
                         />
+                      </div>
+                      <div className="search-results-list">
+                        {messageSearchResults.map((message) => (
+                          <button
+                            type="button"
+                            key={message.id}
+                            className="search-result-item"
+                            onClick={() => handleSearchResultClick(message)}
+                          >
+                            <strong>{message.sender?.name || "Unknown"}</strong>
+                            <span>{message.body || (message.attachments?.length ? "Attachment" : "Deleted message")}</span>
+                            <small>{message.createdAt ? formatRelativeTime(message.createdAt) : ""}</small>
+                          </button>
+                        ))}
+                        {!messageSearchResults.length && messageSearchQuery.trim() ? (
+                          <p className="chat-empty-state">No messages matched that search.</p>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}

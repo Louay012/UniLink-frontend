@@ -29,6 +29,9 @@ async function listMessages(selectedRole, chatId, options = {}) {
   if (options.before) {
     params.set("before", options.before);
   }
+  if (options.anchor) {
+    params.set("anchor", options.anchor);
+  }
   if (options.q) {
     params.set("q", options.q);
   }
@@ -50,20 +53,32 @@ async function startDirectChat(selectedRole, payload) {
   });
 }
 
-async function sendMessage(selectedRole, chatId, body) {
+async function sendMessage(selectedRole, chatId, payload) {
   return apiRequest(`/chats/${chatId}/messages`, selectedRole, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ body })
+    body: JSON.stringify(
+      typeof payload === "string"
+        ? { body: payload }
+        : payload || {}
+    )
   });
 }
 
-async function sendMessageWithFiles(selectedRole, chatId, body, files = []) {
+async function sendMessageWithFiles(selectedRole, chatId, payload, files = []) {
   const formData = new FormData();
-  if (body) {
-    formData.append("body", body);
+  const normalized = typeof payload === "string" ? { body: payload } : (payload || {});
+
+  if (normalized.body) {
+    formData.append("body", normalized.body);
+  }
+  if (normalized.replyToMessageId) {
+    formData.append("replyToMessageId", normalized.replyToMessageId);
+  }
+  if (normalized.forwardedFromMessageId) {
+    formData.append("forwardedFromMessageId", normalized.forwardedFromMessageId);
   }
   for (const file of files) {
     formData.append("files", file);
@@ -77,11 +92,11 @@ async function sendMessageWithFiles(selectedRole, chatId, body, files = []) {
     body: formData
   });
 
-  const payload = await response.json();
+  const responsePayload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.error || payload.message || "Request failed");
+    throw new Error(responsePayload.error || responsePayload.message || "Request failed");
   }
-  return payload;
+  return responsePayload;
 }
 
 async function editMessage(selectedRole, chatId, messageId, body) {
