@@ -1,261 +1,495 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Mail, GraduationCap, Building2, Layers, BookOpen, Hash, CalendarDays, Shield } from "lucide-react";
+import {
+  User, Mail, GraduationCap, Building2, Layers, BookOpen,
+  Hash, CalendarDays, Shield, Camera, Lock, Eye, EyeOff,
+  CheckCircle2, AlertCircle, Briefcase, MapPin, Clock, X
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { apiRequest } from "../../services/api";
+import { notifyAvatarUpdated } from "../../components/NavAvatar";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const photoUrl = (userId) => `${API_BASE}/profile/photo/${userId}`;
+
+// ── Reusable info row ─────────────────────────────────────────────────
+function InfoRow({ icon: Icon, label, value }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-0">
+      <Icon size={15} className="flex-shrink-0 text-indigo-400 mt-0.5" />
+      <div className="min-w-0 flex-1 flex items-baseline justify-between gap-4">
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">
+          {label}
+        </span>
+        <span className="text-sm font-semibold text-slate-800 text-right">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Section divider inside the unified card ───────────────────────────
+function SectionHeading({ title }) {
+  return (
+    <div className="flex items-center gap-3 pt-4 pb-1">
+      <span className="text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-indigo-500">
+        {title}
+      </span>
+      <div className="flex-1 h-px bg-indigo-100" />
+    </div>
+  );
+}
+
+// ── Change Password Modal ─────────────────────────────────────────────
+function ChangePasswordModal({ token, onClose }) {
+  const toast = useToast();
+  const [pwCurrent, setPwCurrent] = useState("");
+  const [pwNew, setPwNew]         = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [showCur, setShowCur]     = useState(false);
+  const [showNew, setShowNew]     = useState(false);
+  const [showCon, setShowCon]     = useState(false);
+  const [loading, setLoading]     = useState(false);
+  // Inline validation errors only (before the API call)
+  const [validationError, setValidationError] = useState("");
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setValidationError("");
+
+    if (pwNew.length < 8) { setValidationError("New password must be at least 8 characters."); return; }
+    if (pwNew !== pwConfirm) { setValidationError("Passwords do not match."); return; }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/profile/password`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "Could not update password.");
+
+      // ✅ Success toast, then close modal
+      toast.success("Your password has been updated.", "Password Changed");
+      onClose();
+    } catch (err) {
+      // ❌ Error toast for API/network errors
+      toast.error(err.message || "Could not update password.", "Password Update Failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const fields = [
+    { label: "Current Password", value: pwCurrent, set: setPwCurrent, show: showCur, toggle: () => setShowCur(v => !v) },
+    { label: "New Password",     value: pwNew,     set: setPwNew,     show: showNew, toggle: () => setShowNew(v => !v) },
+    { label: "Confirm Password", value: pwConfirm, set: setPwConfirm, show: showCon, toggle: () => setShowCon(v => !v) },
+  ];
+
+  return (
+    // Backdrop
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+      style={{ background: "rgba(2,6,23,0.55)", backdropFilter: "blur(6px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        style={{ animation: "rise-in 200ms ease" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Lock size={16} className="text-indigo-500" />
+            <h2 className="text-base font-extrabold text-slate-800 m-0">Change Password</h2>
+          </div>
+          <button
+            type="button" onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors border-none bg-transparent cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
+          {fields.map(({ label, value, set, show, toggle }) => (
+            <div key={label}>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5">{label}</label>
+              <div className="relative">
+                <input
+                  type={show ? "text" : "password"}
+                  value={value}
+                  onChange={e => set(e.target.value)}
+                  required
+                  disabled={loading}
+                  placeholder={label}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm pr-10 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all disabled:opacity-60"
+                />
+                <button
+                  type="button" onClick={toggle} tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer p-0 transition-colors"
+                >
+                  {show ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <p className="text-xs text-slate-400 m-0">At least 8 characters required.</p>
+
+          {/* Only show inline validation errors (mismatch, too short) — API errors go to toast */}
+          {validationError && (
+            <div className="flex items-center gap-2 text-red-600 text-xs font-semibold bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+              <AlertCircle size={13} className="flex-shrink-0" /> {validationError}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors border-none cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !pwCurrent || !pwNew || !pwConfirm}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed border-none cursor-pointer"
+              style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}
+            >
+              {loading ? "Updating…" : "Update Password"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Skeleton loading ──────────────────────────────────────────────────
+function ProfileSkeleton() {
+  return (
+    <div className="page-shell" style={{ maxWidth: 960, width: "100%", margin: "0 auto", paddingTop: "1.5rem" }}>
+      {/* Hero skeleton */}
+      <div className="rounded-2xl p-6 mb-5 flex flex-col sm:flex-row items-center gap-5 animate-pulse"
+        style={{ background: "linear-gradient(135deg,#0b1220 0%,#1e293b 85%)" }}>
+        <div className="w-20 h-20 rounded-full bg-white/10 flex-shrink-0" />
+        <div className="flex-1 space-y-3 min-w-0 w-full sm:w-auto">
+          <div className="h-5 bg-white/10 rounded-lg w-48" />
+          <div className="h-3 bg-white/10 rounded-lg w-36" />
+          <div className="h-3 bg-white/10 rounded-lg w-44" />
+        </div>
+        <div className="h-9 w-36 bg-white/10 rounded-xl flex-shrink-0" />
+      </div>
+      {/* Card skeleton */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4 space-y-5">
+        <div className="h-3 bg-slate-100 rounded w-40" />
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="flex justify-between items-center py-3 border-b border-slate-50 animate-pulse">
+            <div className="h-3 bg-slate-100 rounded w-28" />
+            <div className="h-3 bg-slate-100 rounded w-44" />
+          </div>
+        ))}
+        <div className="h-3 bg-slate-100 rounded w-32 mt-4" />
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="flex justify-between items-center py-3 border-b border-slate-50 animate-pulse">
+            <div className="h-3 bg-slate-100 rounded w-32" />
+            <div className="h-3 bg-slate-100 rounded w-40" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { token, selectedRole } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
+
+  const [profile, setProfile]               = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [photoSrc, setPhotoSrc]             = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [pwModalOpen, setPwModalOpen]       = useState(false);
+
+  // Photo preview state (two-step: select → preview → save)
+  const [pendingFile, setPendingFile]       = useState(null);
+  const [previewSrc, setPreviewSrc]         = useState(null);
 
   useEffect(() => {
-    if (!token) {
-      navigate("/login", { replace: true });
-    }
+    if (!token) navigate("/login", { replace: true });
   }, [token, navigate]);
 
   useEffect(() => {
     let active = true;
-
     async function loadProfile() {
       setLoading(true);
-      setError("");
       try {
         const data = await apiRequest("/profile", selectedRole);
-        if (active) setProfile(data);
+        if (active) {
+          setProfile(data);
+          setPhotoSrc(`${photoUrl(data.id)}?t=${Date.now()}`);
+        }
       } catch (err) {
-        if (active) setError(err.message || "Could not load profile.");
+        if (active) toast.error(err.message || "Could not load profile.", "Profile Error");
       } finally {
         if (active) setLoading(false);
       }
     }
-
     loadProfile();
     return () => { active = false; };
   }, [selectedRole?.value]);
 
-  if (loading) {
+  // Step 1: pick file → preview
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.warning("Please select an image file (JPG, PNG, WEBP…).", "Invalid File");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning("Image must be under 5 MB.", "File Too Large");
+      return;
+    }
+    setPendingFile(file);
+    setPreviewSrc(URL.createObjectURL(file));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  // Step 2: save preview
+  async function handlePhotoSave() {
+    if (!pendingFile) return;
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("photo", pendingFile);
+      const res = await fetch(`${API_BASE}/profile/photo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.message || "Upload failed."); }
+      setPhotoSrc(`${photoUrl(profile.id)}?t=${Date.now()}`);
+      toast.success("Your profile photo has been updated.", "Photo Updated");
+      notifyAvatarUpdated();
+    } catch (err) {
+      toast.error(err.message || "Upload failed.", "Photo Upload Failed");
+    } finally {
+      setPhotoUploading(false);
+      handlePhotoCancel();
+    }
+  }
+
+  // Cancel preview
+  function handlePhotoCancel() {
+    if (previewSrc) URL.revokeObjectURL(previewSrc);
+    setPendingFile(null);
+    setPreviewSrc(null);
+  }
+
+  // Remove photo
+  async function handlePhotoRemove() {
+    setPhotoUploading(true);
+    try {
+      const res = await fetch(`${API_BASE}/profile/photo`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.message || "Could not remove photo."); }
+      setPhotoSrc(null);
+      toast.success("Profile photo removed.", "Photo Removed");
+      notifyAvatarUpdated();
+    } catch (err) {
+      toast.error(err.message || "Could not remove photo.", "Remove Failed");
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  // ── Loading → skeleton ──────────────────────────────────────────────
+  if (loading) return <ProfileSkeleton />;
+
+  if (!profile) {
     return (
       <div className="page-shell">
-        <header className="hero">
-          <div>
-            <p className="tag">UniLink</p>
-            <h1>My Profile</h1>
-            <p className="subtitle">Loading your profile...</p>
-          </div>
-        </header>
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mt-4">
+          Profile not available.
+        </div>
       </div>
     );
   }
 
-  if (error || !profile) {
-    return (
-      <div className="page-shell">
-        <header className="hero">
-          <div>
-            <p className="tag">UniLink</p>
-            <h1>My Profile</h1>
-            <p className="subtitle">{error || "Profile not available."}</p>
-          </div>
-        </header>
-      </div>
-    );
-  }
+  const fullName       = `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "User";
+  const initials       = fullName.split(" ").filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join("") || "U";
+  const sp             = profile.studentProfile;
+  const tp             = profile.teacherProfile;
+  const roleLabels     = (profile.roles || []).map(r => r.label).join(", ") || "User";
+  const academicSummary = sp ? [sp.classGroup?.code, sp.level?.code].filter(Boolean).join(" · ") : "";
+  const joinDate       = new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-  const fullName = `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "User";
-  const initials = fullName.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "U";
-  const sp = profile.studentProfile;
-  const tp = profile.teacherProfile;
-  const roleLabels = (profile.roles || []).map((r) => r.label).join(", ") || "User";
+  // Whether the user has a server-side photo loaded (not just a preview)
+  const hasServerPhoto = !!photoSrc;
 
   return (
-    <div className="page-shell">
-      <header className="hero profile-hero">
-        <div style={{ display: "flex", alignItems: "center", gap: "1.2rem" }}>
-          <div className="profile-avatar-large">{initials}</div>
-          <div>
-            <p className="tag">UniLink</p>
-            <h1>{fullName}</h1>
-            <p className="subtitle">{roleLabels}</p>
-          </div>
-        </div>
-      </header>
+    <>
+      {pwModalOpen && (
+        <ChangePasswordModal token={token} onClose={() => setPwModalOpen(false)} />
+      )}
 
-      <div className="profile-grid">
-        {/* Personal Info Card */}
-        <section className="card profile-card">
-          <div className="card-header">
-            <h3>Personal Information</h3>
-          </div>
-          <div className="profile-fields">
-            <div className="profile-field">
-              <User size={16} className="profile-field-icon" />
-              <div>
-                <small>Full Name</small>
-                <p>{fullName}</p>
+      <div className="page-shell profile-enter" style={{ maxWidth: 960, width: "100%", margin: "0 auto", paddingTop: "1.5rem" }}>
+
+        {/* ── Hero ──────────────────────────────────────────────────── */}
+        <div
+          className="rounded-2xl p-6 mb-5 flex flex-col sm:flex-row items-center gap-5"
+          style={{ background: "linear-gradient(135deg,#0b1220 0%,#1e293b 85%)", color: "#f1f5f9" }}
+        >
+          {/* Avatar with camera/remove overlay + preview save/cancel */}
+          <div className="flex flex-col items-center flex-shrink-0 gap-2">
+            <div className="relative group">
+              <div
+                className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-extrabold text-white"
+                style={{
+                  background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                  boxShadow: previewSrc ? "0 0 0 3px #6366f1, 0 0 0 5px rgba(99,102,241,0.3)" : "none",
+                }}
+              >
+                {previewSrc ? (
+                  <img src={previewSrc} alt="Preview" className="w-full h-full object-cover" />
+                ) : photoSrc ? (
+                  <img src={photoSrc} alt={fullName} className="w-full h-full object-cover"
+                    onError={() => setPhotoSrc(null)} />
+                ) : initials}
               </div>
+
+              {/* Overlays — only when NOT in preview mode */}
+              {!previewSrc && (
+                <>
+                  {/* Camera overlay (upload) */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={photoUploading}
+                    title="Change photo"
+                    className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-0"
+                    style={{ background: "rgba(0,0,0,0.45)" }}
+                  >
+                    {photoUploading
+                      ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      : <Camera size={20} className="text-white" />}
+                  </button>
+
+                  {/* Remove photo button — only if a server photo exists */}
+                  {hasServerPhoto && !photoUploading && (
+                    <button
+                      type="button"
+                      onClick={handlePhotoRemove}
+                      title="Remove photo"
+                      className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-2 border-white"
+                      style={{ background: "#ef4444", fontSize: 12, lineHeight: 1 }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
             </div>
-            <div className="profile-field">
-              <Mail size={16} className="profile-field-icon" />
-              <div>
-                <small>Email</small>
-                <p>{profile.email}</p>
-              </div>
-            </div>
-            {profile.phone && (
-              <div className="profile-field">
-                <Hash size={16} className="profile-field-icon" />
-                <div>
-                  <small>Phone</small>
-                  <p>{profile.phone}</p>
-                </div>
+
+            {/* Save / Cancel — only during preview */}
+            {previewSrc && (
+              <div className="flex gap-2">
+                <button
+                  type="button" onClick={handlePhotoCancel} disabled={photoUploading}
+                  className="px-2.5 py-1 rounded-lg text-[0.7rem] font-bold text-slate-300 bg-white/10 hover:bg-white/20 border-none cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button" onClick={handlePhotoSave} disabled={photoUploading}
+                  className="px-2.5 py-1 rounded-lg text-[0.7rem] font-bold text-white border-none cursor-pointer transition-colors disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}
+                >
+                  {photoUploading ? "Saving…" : "Save"}
+                </button>
               </div>
             )}
-            <div className="profile-field">
-              <Shield size={16} className="profile-field-icon" />
-              <div>
-                <small>Roles</small>
-                <p>{roleLabels}</p>
-              </div>
-            </div>
-            <div className="profile-field">
-              <CalendarDays size={16} className="profile-field-icon" />
-              <div>
-                <small>Member Since</small>
-                <p>{new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
-              </div>
-            </div>
           </div>
-        </section>
 
-        {/* Student Profile Card */}
-        {sp && (
-          <section className="card profile-card">
-            <div className="card-header">
-              <h3>Academic Info</h3>
-            </div>
-            <div className="profile-fields">
-              {sp.studentNumber && (
-                <div className="profile-field">
-                  <Hash size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Student Number</small>
-                    <p>{sp.studentNumber}</p>
-                  </div>
-                </div>
-              )}
-              <div className="profile-field">
-                <Building2 size={16} className="profile-field-icon" />
-                <div>
-                  <small>Class Group</small>
-                  <p>{sp.classGroup?.name} ({sp.classGroup?.code})</p>
-                </div>
-              </div>
-              <div className="profile-field">
-                <Layers size={16} className="profile-field-icon" />
-                <div>
-                  <small>Department</small>
-                  <p>{sp.department?.name} ({sp.department?.code})</p>
-                </div>
-              </div>
-              <div className="profile-field">
-                <GraduationCap size={16} className="profile-field-icon" />
-                <div>
-                  <small>Level</small>
-                  <p>{sp.level?.name} ({sp.level?.code})</p>
-                </div>
-              </div>
-              {sp.enrollmentStatus && (
-                <div className="profile-field">
-                  <Shield size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Enrollment Status</small>
-                    <p>{sp.enrollmentStatus}</p>
-                  </div>
-                </div>
-              )}
-              {sp.programName && (
-                <div className="profile-field">
-                  <BookOpen size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Program</small>
-                    <p>{sp.programName}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Stats Card */}
-        <section className="card profile-card">
-          <div className="card-header">
-            <h3>Quick Stats</h3>
+          {/* Name + summary */}
+          <div className="min-w-0 flex-1 text-center sm:text-left">
+            <h1 className="text-xl font-extrabold text-white m-0 leading-tight">{fullName}</h1>
+            <p className="text-slate-300 text-sm mt-0.5 m-0">
+              {roleLabels}{academicSummary ? ` · ${academicSummary}` : ""}
+            </p>
+            <p className="text-slate-400 text-xs mt-1 m-0">Member since {joinDate}</p>
           </div>
-          <div className="profile-stats">
-            <div className="profile-stat">
-              <BookOpen size={20} />
-              <h4>{profile.courseCount || 0}</h4>
-              <small>Enrolled Courses</small>
-            </div>
-            <div className="profile-stat">
-              <Shield size={20} />
-              <h4>{(profile.roles || []).length}</h4>
-              <small>Active Roles</small>
-            </div>
-          </div>
-        </section>
 
-        {/* Teacher Profile Card */}
-        {tp && (
-          <section className="card profile-card">
-            <div className="card-header">
-              <h3>Teacher Info</h3>
-            </div>
-            <div className="profile-fields">
-              {tp.employeeCode && (
-                <div className="profile-field">
-                  <Hash size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Employee Code</small>
-                    <p>{tp.employeeCode}</p>
-                  </div>
-                </div>
-              )}
-              {tp.academicRank && (
-                <div className="profile-field">
-                  <GraduationCap size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Academic Rank</small>
-                    <p>{tp.academicRank}</p>
-                  </div>
-                </div>
-              )}
-              {tp.officeLocation && (
-                <div className="profile-field">
-                  <Building2 size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Office</small>
-                    <p>{tp.officeLocation}</p>
-                  </div>
-                </div>
-              )}
-              {tp.bio && (
-                <div className="profile-field">
-                  <User size={16} className="profile-field-icon" />
-                  <div>
-                    <small>Bio</small>
-                    <p>{tp.bio}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+          {/* Change Password button */}
+          <button
+            type="button"
+            onClick={() => setPwModalOpen(true)}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer border-none"
+            style={{ background: "rgba(255,255,255,0.12)", color: "#e2e8f0" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.12)"}
+          >
+            <Lock size={14} />
+            <span>Change Password</span>
+          </button>
+        </div>
+
+        {/* ── Single Unified Info Card ───────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-4">
+
+          <SectionHeading title="Personal Information" />
+          <InfoRow icon={User}         label="Full Name"    value={fullName} />
+          <InfoRow icon={Mail}         label="Email"        value={profile.email} />
+          {profile.phone && <InfoRow icon={Hash} label="Phone" value={profile.phone} />}
+          <InfoRow icon={Shield}       label="Roles"        value={roleLabels} />
+          <InfoRow icon={CalendarDays} label="Member Since" value={joinDate} />
+
+          {sp && (
+            <>
+              <SectionHeading title="Academic Info" />
+              <InfoRow icon={Hash}          label="Student Number" value={sp.studentNumber} />
+              <InfoRow icon={Building2}     label="Class Group"
+                value={sp.classGroup ? `${sp.classGroup.name} (${sp.classGroup.code})` : null} />
+              <InfoRow icon={Layers}        label="Department"
+                value={sp.department ? `${sp.department.name} (${sp.department.code})` : null} />
+              <InfoRow icon={GraduationCap} label="Level"
+                value={sp.level ? `${sp.level.name} (${sp.level.code})` : null} />
+              <InfoRow icon={Shield}        label="Enrollment"     value={sp.enrollmentStatus} />
+              <InfoRow icon={BookOpen}      label="Program"        value={sp.programName} />
+            </>
+          )}
+
+          {tp && (
+            <>
+              <SectionHeading title="Teacher Info" />
+              <InfoRow icon={Hash}      label="Employee Code" value={tp.employeeCode} />
+              <InfoRow icon={Briefcase} label="Academic Rank" value={tp.academicRank} />
+              <InfoRow icon={MapPin}    label="Office"        value={tp.officeLocation} />
+              <InfoRow icon={Clock}     label="Office Hours"  value={tp.officeHours} />
+              <InfoRow icon={User}      label="Bio"           value={tp.bio} />
+            </>
+          )}
+
+        </div>
       </div>
-    </div>
+    </>
   );
 }

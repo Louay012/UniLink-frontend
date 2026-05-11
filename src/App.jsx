@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Sidebar from "./components/Sidebar";
 import TopNavbar from "./components/TopNavbar";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ToastProvider } from "./context/ToastContext";
 import useNotifications from "./hooks/useNotifications";
 import LoginPage from "./app/login/LoginPage";
 import DashboardPage from "./app/dashboard/DashboardPage";
@@ -46,19 +47,26 @@ function AppRoutes() {
 function AuthenticatedShell() {
   const { selectedRole } = useAuth();
   const { notifications, unreadCount, markAllRead, dismiss } = useNotifications(selectedRole);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <div className="app-shell">
-      <Sidebar />
-      <div className="app-content">
-        <TopNavbar
-          unreadCount={unreadCount}
-          notifications={notifications}
-          onMarkAllRead={markAllRead}
-          onDismiss={dismiss}
-        />
-        <div className="app-content-body">
-          <AppRoutes />
+      <TopNavbar
+        unreadCount={unreadCount}
+        notifications={notifications}
+        onMarkAllRead={markAllRead}
+        onDismiss={dismiss}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(o => !o)}
+      />
+      <div className="app-body">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <div className="app-content">
+          <div className="app-content-body">
+            <div className="page-shell">
+              <AppRoutes />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -68,7 +76,8 @@ function AuthenticatedShell() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/my-work/*" element={<MyWorkApp />} />
           <Route path="/login" element={<LoginPage />} />
@@ -76,6 +85,7 @@ export default function App() {
           <Route path="*" element={<AuthenticatedShell />} />
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

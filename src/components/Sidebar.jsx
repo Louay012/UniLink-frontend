@@ -2,16 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { listCourses } from "../services/course.service";
+import NavAvatar from "./NavAvatar";
+
 import {
   Home,
-  BookOpen,
+  GraduationCap,
   MessageCircle,
   Users,
   UserPlus,
-  Menu,
   ChevronDown,
   ChevronRight,
-  GraduationCap,
   LogOut,
   AlertCircle,
   User
@@ -23,7 +23,6 @@ const getLinks = (isAdmin) => {
     { to: "/chat", label: "Chat" },
     { to: "/groups", label: "Groups" }
   ];
-
   if (isAdmin) {
     return [
       ...baseLinks,
@@ -33,99 +32,79 @@ const getLinks = (isAdmin) => {
       { to: "/admin/academic-setup", label: "Academic Setup" }
     ];
   }
-
   return baseLinks;
 };
 
-export default function Sidebar() {
+const iconFor = (label) => {
+  const key = (label || '').toLowerCase();
+  if (key.includes('dash')) return Home;
+  if (key.includes('course')) return GraduationCap;
+  if (key.includes('chat') || key.includes('message')) return MessageCircle;
+  if (key.includes('group') || key.includes('teacher') || key.includes('users')) return Users;
+  if (key.includes('add')) return UserPlus;
+  return GraduationCap;
+};
+
+export default function Sidebar({ isOpen, onClose }) {
   const { user, token, logout, selectedRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = user?.role === "ADMIN";
   const links = getLinks(isAdmin);
-  const initialIsMobile = typeof window !== 'undefined' ? window.innerWidth <= 1100 : false;
-  const [isMobile, setIsMobile] = useState(initialIsMobile);
-  const [isOpen, setIsOpen] = useState(!initialIsMobile);
+  const isStudentSidebar = !isAdmin;
+
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth <= 1100 : false
+  );
   const [isCoursesExpanded, setIsCoursesExpanded] = useState(true);
   const [sidebarCourses, setSidebarCourses] = useState([]);
   const [coursesError, setCoursesError] = useState("");
-  const isStudentSidebar = !isAdmin;
+
+  // Track mobile breakpoint
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 1100);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Auto-close drawer when navigating on mobile
+  useEffect(() => {
+    if (isMobile && onClose) onClose();
+  }, [location.pathname]);
+
+  // Cleanup legacy class
+  useEffect(() => {
+    document.body.classList.remove('mobile-view');
+  }, []);
 
   const topSidebarCourses = useMemo(() => {
-    const sorted = [...sidebarCourses].sort((left, right) => {
-      const rightTime = new Date(right.updatedAt || right.createdAt || 0).getTime();
-      const leftTime = new Date(left.updatedAt || left.createdAt || 0).getTime();
-      if (rightTime !== leftTime) return rightTime - leftTime;
-      return String(left.title || '').localeCompare(String(right.title || ''));
+    const sorted = [...sidebarCourses].sort((a, b) => {
+      const bt = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      const at = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      if (bt !== at) return bt - at;
+      return String(a.title || '').localeCompare(String(b.title || ''));
     });
     return sorted.slice(0, 3);
   }, [sidebarCourses]);
 
   useEffect(() => {
-    const onResize = () => {
-      const mobile = window.innerWidth <= 1100;
-      setIsMobile(mobile);
-      if (mobile) setIsOpen(false);
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  // Cleanup any legacy mobile-view class that can force one-column layout.
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.body.classList.remove('mobile-view');
-    return () => document.body.classList.remove('mobile-view');
-  }, []);
-
-  // Keep a body class to let global styles adjust layout when collapsed
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      if (!isOpen) document.body.classList.add('sidebar-collapsed');
-      else document.body.classList.remove('sidebar-collapsed');
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
     let active = true;
-
-    async function loadCoursesForSidebar() {
-      if (!token || isAdmin) {
-        if (active) {
-          setSidebarCourses([]);
-          setCoursesError('');
-        }
-        return;
-      }
-
+    async function loadCourses() {
+      if (!token || isAdmin) { if (active) { setSidebarCourses([]); setCoursesError(''); } return; }
       try {
         const payload = await listCourses(selectedRole);
         if (!active) return;
         setSidebarCourses(payload.items || []);
         setCoursesError('');
-      } catch (error) {
+      } catch (err) {
         if (!active) return;
         setSidebarCourses([]);
-        setCoursesError(error.message || 'Could not load courses.');
+        setCoursesError(err.message || 'Could not load courses.');
       }
     }
-
-    loadCoursesForSidebar();
-
-    return () => {
-      active = false;
-    };
+    loadCourses();
+    return () => { active = false; };
   }, [isAdmin, selectedRole, token]);
-
-  const iconFor = (label) => {
-    const key = (label || '').toLowerCase();
-    if (key.includes('dash')) return Home;
-    if (key.includes('course')) return GraduationCap;
-    if (key.includes('chat') || key.includes('message')) return MessageCircle;
-    if (key.includes('group') || key.includes('teacher') || key.includes('users')) return Users;
-    if (key.includes('add')) return UserPlus;
-    return GraduationCap;
-  };
 
   const profileName = user
     ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "User"
@@ -133,290 +112,202 @@ export default function Sidebar() {
   const profileSubtitle = selectedRole?.label || user?.role || "Student";
   const isCoursesRoute = location.pathname === '/courses';
 
+  // On desktop: sidebar collapses to icon-only strip (72px). On mobile: fixed drawer overlay.
+  // isOpen=true → expanded (270px desktop) or overlay-open (mobile)
+  // isOpen=false → collapsed icon-only (72px desktop) or hidden (mobile)
+
+  // Desktop sidebar classes
+  const desktopSidebarClass = isOpen ? "w-[270px]" : "w-[72px]";
+
+  // Mobile sidebar: fixed overlay, slides in from left, always full width 270px
+  const mobileSidebarTranslate = (isMobile && isOpen) ? "translate-x-0" : (isMobile ? "-translate-x-full" : "");
+
+  const sidebarBase = `
+    flex flex-col h-full overflow-y-auto overflow-x-hidden
+    border-r border-white/[0.08] flex-shrink-0 transition-all duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]
+  `;
+
+  // Nav link base style
+  const navLinkBase = (isActive, collapsed) => `
+    flex items-center gap-3 px-3 py-[0.52rem] rounded-xl font-semibold text-[0.875rem] no-underline
+    transition-all duration-150 cursor-pointer
+    ${collapsed ? 'justify-center px-0 mx-auto w-11 h-11' : ''}
+    ${isActive
+      ? 'bg-white/15 text-white'
+      : 'text-white/70 hover:bg-white/10 hover:text-white'
+    }
+  `;
+
+  const collapsed = !isOpen; // true on desktop when sidebar is icon-only
+
   return (
     <>
-      {/* Render sidebar only when not mobile OR when mobile and explicitly opened (drawer) */}
-      {(!isMobile || isOpen) && (
-        <aside className={`app-sidebar ${isMobile ? 'mobile-drawer' : ''}`}>
-      <div className="sidebar-top">
-        <div className="sidebar-brand" style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <button
-              type="button"
-              onClick={() => setIsOpen((s) => !s)}
-              className="app-nav-link"
-              style={{
-                padding: '0.4rem',
-                width: '2.35rem',
-                minWidth: '2.35rem',
-                justifyContent: 'center',
-                borderRadius: '10px'
-              }}
-              title={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-              aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            >
-              <Menu size={22} className="nav-icon" style={{ marginRight: 0 }} />
-            </button>
-
-            <div className="brand-icon" aria-hidden>
-              <BookOpen size={22} />
-            </div>
-          </div>
-          {isOpen && (
-            <div className="brand-text">
-              <p className="sidebar-kicker">University Portal</p>
-              <h2>UniLink</h2>
-              <small>Academic Services</small>
-            </div>
-          )}
-        </div>
-
-        {isOpen && (
-          <div className="sidebar-profile">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <div
-                aria-hidden
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '999px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.16)',
-                  fontWeight: 700
-                }}
-              >
-                {(profileName || "U").slice(0, 1).toUpperCase()}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {profileName}
-                </p>
-                <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1' }}>{profileSubtitle}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <nav>
-        {isStudentSidebar && (
-          <>
-            <NavLink
-              to="/dashboard"
-              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? "Dashboard" : undefined}
-            >
-              <Home size={18} className="nav-icon" />
-              {isOpen && <span className="nav-label">Dashboard</span>}
-            </NavLink>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!isOpen) {
-                  navigate('/courses');
-                  return;
-                }
-                setIsCoursesExpanded((v) => !v);
-              }}
-              className={`app-nav-link ${isCoursesRoute ? 'active' : ''} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? 'Courses' : undefined}
-              style={{ cursor: 'pointer', justifyContent: isOpen ? 'flex-start' : 'center', textAlign: 'left' }}
-            >
-              <GraduationCap size={isOpen ? 18 : 21} className="nav-icon" style={!isOpen ? { marginRight: 0 } : undefined} />
-              {isOpen && (
-                <>
-                  <span className="nav-label">Courses</span>
-                  {isCoursesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </>
-              )}
-            </button>
-
-            {isOpen && isCoursesExpanded && (
-              <div style={{ marginLeft: '0.6rem', borderLeft: '2px solid rgba(255,255,255,0.2)', paddingLeft: '0.55rem', display: 'grid', gap: '0.35rem' }}>
-                {topSidebarCourses.map((course) => (
-                  <NavLink
-                    key={course.id}
-                    to={`/courses/${course.id}`}
-                    className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""}`}
-                    style={{ padding: '0.55rem 0.65rem', fontWeight: 500 }}
-                    title={course.title}
-                  >
-                    <span className="nav-label" style={{ fontSize: '0.88rem' }}>{course.title}</span>
-                    {(Number(course.announcementCount) || 0) > 0 && (
-                      <span
-                        style={{
-                          marginLeft: '0.45rem',
-                          background: '#ef4444',
-                          color: '#fff',
-                          fontSize: '0.7rem',
-                          borderRadius: '999px',
-                          padding: '0.12rem 0.4rem',
-                          fontWeight: 700
-                        }}
-                      >
-                        {`${Number(course.announcementCount)} new`}
-                      </span>
-                    )}
-                  </NavLink>
-                ))}
-
-                {!topSidebarCourses.length && !coursesError ? (
-                  <p style={{ margin: 0, fontSize: '0.82rem', color: '#cbd5e1' }}>No courses yet.</p>
-                ) : null}
-
-                {coursesError ? (
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#fca5a5' }}>{coursesError}</p>
-                ) : null}
-
-                <NavLink
-                  to="/courses"
-                  className="app-nav-link view-all-link"
-                  style={{ padding: '0.45rem 0.65rem', fontWeight: 600, color: '#38bdf8' }}
-                >
-                  <span className="nav-label">View All →</span>
-                </NavLink>
-              </div>
-            )}
-
-            <NavLink
-              to="/chat"
-              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? 'Chat' : undefined}
-            >
-              <MessageCircle size={18} className="nav-icon" />
-              {isOpen && <span className="nav-label">Chat</span>}
-            </NavLink>
-
-            <NavLink
-              to="/groups"
-              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? 'Groups' : undefined}
-            >
-              <Users size={18} className="nav-icon" />
-              {isOpen && <span className="nav-label">Groups</span>}
-            </NavLink>
-
-            <NavLink
-              to="/feedback"
-              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? 'Feedback' : undefined}
-            >
-              <AlertCircle size={18} className="nav-icon" />
-              {isOpen && <span className="nav-label">Feedback</span>}
-            </NavLink>
-
-            <NavLink
-              to="/profile"
-              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? 'Profile' : undefined}
-            >
-              <User size={18} className="nav-icon" />
-              {isOpen && <span className="nav-label">Profile</span>}
-            </NavLink>
-          </>
-        )}
-
-        {!isStudentSidebar && links.map((link) => {
-          if (link.label === "Dashboard") {
-            const Icon = iconFor(link.label);
-            return (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-                title={!isOpen ? link.label : undefined}
-              >
-                <Icon size={18} className="nav-icon" />
-                {isOpen && <span className="nav-label">{link.label}</span>}
-              </NavLink>
-            );
-          }
-
-          if (link.label === "Chat") {
-            const Icon = iconFor(link.label);
-            return (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-                title={!isOpen ? link.label : undefined}
-              >
-                <Icon size={18} className="nav-icon" />
-                {isOpen && <span className="nav-label">{link.label}</span>}
-              </NavLink>
-            );
-          }
-
-          if (link.label === "Groups") {
-            const Icon = iconFor(link.label);
-            return (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-                title={!isOpen ? link.label : undefined}
-              >
-                <Icon size={18} className="nav-icon" />
-                {isOpen && <span className="nav-label">{link.label}</span>}
-              </NavLink>
-            );
-          }
-
-          const Icon = iconFor(link.label);
-          return (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              className={({ isActive }) => `app-nav-link ${isActive ? "active" : ""} ${!isOpen ? 'collapsed' : ''}`}
-              title={!isOpen ? link.label : undefined}
-            >
-              <Icon size={18} className="nav-icon" />
-              {isOpen && <span className="nav-label">{link.label}</span>}
-            </NavLink>
-          );
-        })}
-      </nav>
-          <div className="sidebar-footer">
-            <p>Spring Semester 2026</p>
-            <div style={{ marginTop: '0.6rem' }}>
-              <button
-                className="sidebar-logout"
-                onClick={() => {
-                  logout();
-                  navigate('/login');
-                }}
-                title="Logout"
-                aria-label="Logout"
-              >
-                <LogOut size={16} />
-                {isOpen && <span>Logout</span>}
-              </button>
-            </div>
-          </div>
-        </aside>
+      {/* Backdrop — mobile only when open */}
+      {isMobile && isOpen && (
+        <div
+          className="fixed inset-0 z-[59] cursor-pointer"
+          style={{ top: 52, background: "rgba(2,6,23,0.35)", backdropFilter: "blur(3px)" }}
+          onClick={onClose}
+          aria-hidden="true"
+        />
       )}
-      {/* Mobile bottom navigation for small screens (only when drawer is closed) */}
-      {isMobile && !isOpen && (
-        <nav className="mobile-bottom-nav" role="navigation" aria-label="Mobile navigation">
-          {links.map((link) => {
+
+      <aside
+        className={`
+          ${sidebarBase}
+          ${isMobile
+            ? `fixed left-0 z-[60] w-[270px] ${mobileSidebarTranslate} pointer-events-${isOpen ? 'auto' : 'none'}`
+            : desktopSidebarClass
+          }
+        `}
+        style={{
+          top: isMobile ? 52 : undefined,
+          height: isMobile ? 'calc(100vh - 52px)' : undefined,
+          background: "linear-gradient(180deg,#0b1220 0%,#1e293b 100%)",
+          color: "#f1f5f9",
+          padding: collapsed && !isMobile ? "1rem 0.5rem" : "1.3rem 1rem",
+        }}
+      >
+        {/* Profile card — shown when expanded */}
+        {!collapsed && (
+          <div className="flex items-center gap-3 p-3 rounded-2xl mb-3 border border-white/20 bg-white/[0.08]">
+            <NavAvatar
+              userId={user?.id}
+              initials={(profileName || "U").split(" ").filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join("") || "U"}
+              size={9}
+            />
+            <div className="min-w-0">
+              <p className="m-0 font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis text-sm">{profileName}</p>
+              <p className="m-0 text-[0.78rem] text-slate-300">{profileSubtitle}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Nav */}
+        <nav className={`flex flex-col gap-[0.35rem] flex-1 ${collapsed && !isMobile ? 'items-center' : ''}`}>
+          {isStudentSidebar && (
+            <>
+              <NavLink
+                to="/dashboard"
+                title={collapsed && !isMobile ? "Dashboard" : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}
+              >
+                <Home size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>Dashboard</span>}
+              </NavLink>
+
+              {/* Courses with expand */}
+              <button
+                type="button"
+                title={collapsed && !isMobile ? "Courses" : undefined}
+                onClick={() => {
+                  if (collapsed && !isMobile) { navigate('/courses'); return; }
+                  setIsCoursesExpanded(v => !v);
+                }}
+                className={navLinkBase(isCoursesRoute, collapsed && !isMobile) + " w-full text-left border-none bg-transparent"}
+                style={{ cursor: 'pointer' }}
+              >
+                <GraduationCap size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && (
+                  <>
+                    <span className="flex-1">Courses</span>
+                    {isCoursesExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </>
+                )}
+              </button>
+
+              {/* Course sub-links */}
+              {(!collapsed || isMobile) && isCoursesExpanded && (
+                <div className="ml-3 pl-3 border-l-2 border-white/20 flex flex-col gap-[0.35rem]">
+                  {topSidebarCourses.map((course) => (
+                    <NavLink
+                      key={course.id}
+                      to={`/courses/${course.id}`}
+                      className={({ isActive }) => navLinkBase(isActive, false) + " !py-[0.45rem] !font-medium text-[0.88rem]"}
+                      title={course.title}
+                    >
+                      <span className="truncate">{course.title}</span>
+                      {(Number(course.announcementCount) || 0) > 0 && (
+                        <span className="ml-auto bg-red-500 text-white text-[0.7rem] rounded-full px-1.5 py-0.5 font-bold flex-shrink-0">
+                          {course.announcementCount} new
+                        </span>
+                      )}
+                    </NavLink>
+                  ))}
+                  {!topSidebarCourses.length && !coursesError && (
+                    <p className="m-0 text-[0.82rem] text-slate-300 px-2">No courses yet.</p>
+                  )}
+                  {coursesError && (
+                    <p className="m-0 text-[0.8rem] text-red-300 px-2">{coursesError}</p>
+                  )}
+                  <NavLink
+                    to="/courses"
+                    className={() => navLinkBase(false, false) + " !py-[0.45rem] !font-semibold text-sky-400 hover:text-sky-300"}
+                  >
+                    <span>View All →</span>
+                  </NavLink>
+                </div>
+              )}
+
+              <NavLink to="/chat" title={collapsed && !isMobile ? "Chat" : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
+                <MessageCircle size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>Chat</span>}
+              </NavLink>
+
+              <NavLink to="/groups" title={collapsed && !isMobile ? "Groups" : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
+                <Users size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>Groups</span>}
+              </NavLink>
+
+              <NavLink to="/feedback" title={collapsed && !isMobile ? "Feedback" : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
+                <AlertCircle size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>Feedback</span>}
+              </NavLink>
+
+              <NavLink to="/profile" title={collapsed && !isMobile ? "Profile" : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
+                <User size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>Profile</span>}
+              </NavLink>
+            </>
+          )}
+
+          {/* Admin links */}
+          {!isStudentSidebar && links.map((link) => {
             const Icon = iconFor(link.label);
             return (
               <NavLink
                 key={link.to}
                 to={link.to}
-                className={({ isActive }) => `mobile-nav-link ${isActive ? "active" : ""}`}
-                title={link.label}
+                title={collapsed && !isMobile ? link.label : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}
               >
-                <Icon size={20} className="nav-icon" />
-                <span className="nav-label">{link.label}</span>
+                <Icon size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>{link.label}</span>}
               </NavLink>
             );
           })}
         </nav>
-      )}
+
+        {/* Footer: logout only (semester text removed) */}
+        <div className={`mt-auto pt-3 border-t border-white/[0.12] ${collapsed && !isMobile ? 'flex justify-center' : ''}`}>
+          <button
+            className={`flex items-center gap-3 px-3 py-[0.52rem] rounded-xl text-[0.875rem] font-semibold cursor-pointer w-full
+              text-white/60 hover:bg-red-500/20 hover:text-red-300 transition-all border-none bg-transparent
+              ${collapsed && !isMobile ? 'justify-center w-11 h-11 px-0 mx-auto' : ''}
+            `}
+            onClick={() => { logout(); navigate('/login'); }}
+            title="Logout"
+            aria-label="Logout"
+          >
+            <LogOut size={16} className="flex-shrink-0" />
+            {(!collapsed || isMobile) && <span>Logout</span>}
+          </button>
+        </div>
+      </aside>
     </>
   );
 }
