@@ -22,6 +22,19 @@ import AcademicSetupPage from "./app/admin/AcademicSetupPage";
 import FeedbackPage from "./app/feedback/FeedbackPage";
 import ProfilePage from "./app/profile/ProfilePage";
 
+function ProtectedRoute({ children, allowedRoles }) {
+  const { user, token } = useAuth();
+  if (!token) return <Navigate to="/login" replace />;
+  
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!user || !user.role || !allowedRoles.includes(user.role)) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
+  
+  return children;
+}
+
 function AppRoutes() {
   const { token } = useAuth();
   const target = token ? "/dashboard" : "/login";
@@ -29,17 +42,17 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to={target} replace />} />
-      <Route path="/dashboard" element={<DashboardPage />} />
-      <Route path="/chat" element={<ChatPage />} />
-      <Route path="/groups" element={<GroupsPage />} />
-      <Route path="/courses" element={<CoursesPage />} />
-      <Route path="/courses/:id" element={<CourseDetails />} />
-      <Route path="/feedback" element={<FeedbackPage />} />
-      <Route path="/profile" element={<ProfilePage />} />
-      <Route path="/admin/add-user" element={<AddUserPage />} />
-      <Route path="/admin/view-users" element={<ViewUsersPage />} />
-      <Route path="/admin/assign-courses" element={<AssignCoursesPage />} />
-      <Route path="/admin/academic-setup" element={<AcademicSetupPage />} />
+      <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+      <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
+      <Route path="/courses" element={<ProtectedRoute><CoursesPage /></ProtectedRoute>} />
+      <Route path="/courses/:id" element={<ProtectedRoute><CourseDetails /></ProtectedRoute>} />
+      <Route path="/feedback" element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/admin/add-user" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AddUserPage /></ProtectedRoute>} />
+      <Route path="/admin/view-users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ViewUsersPage /></ProtectedRoute>} />
+      <Route path="/admin/assign-courses" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AssignCoursesPage /></ProtectedRoute>} />
+      <Route path="/admin/academic-setup" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AcademicSetupPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={target} replace />} />
     </Routes>
   );
@@ -81,7 +94,7 @@ export default function App() {
           <Routes>
 
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminPage /></ProtectedRoute>} />
             <Route
               path="*"
               element={

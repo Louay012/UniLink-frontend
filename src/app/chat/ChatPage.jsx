@@ -298,7 +298,15 @@ export default function ChatPage() {
       await saveEditedMessage();
       setError("");
     } catch (e) {
-      toast.error(e.message || "Could not edit message.", "Chat");
+      toast.error(e.message || "Failed to update message.", "Chat");
+    }
+  }
+
+  async function handleToggleReaction(messageId, emoji) {
+    try {
+      await toggleReaction(messageId, emoji);
+    } catch (e) {
+      toast.error(e.message || "Failed to toggle reaction", "Chat");
     }
   }
 
@@ -488,6 +496,7 @@ export default function ChatPage() {
                   onEditMessage={beginEditMessage}
                   onDeleteMessage={handleDeleteMessage}
                   onReplyMessage={beginReplyMessage}
+                  onToggleReaction={handleToggleReaction}
                   editingMessageId={editingMessageId}
                   highlightedMessageId={focusedMessageId}
                   hasOlderMessages={hasOlderMessages}

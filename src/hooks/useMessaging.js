@@ -308,6 +308,15 @@ export default function useMessaging(selectedRole) {
     }
   }
 
+  async function toggleReaction(messageId, emoji) {
+    if (!selectedChat) return;
+    try {
+      await chatService.toggleMessageReaction(selectedRole, selectedChat.id, messageId, emoji);
+    } catch (e) {
+      throw e;
+    }
+  }
+
   async function createDirectChat() {
     if (!selectedContactId) return;
 
@@ -509,6 +518,15 @@ export default function useMessaging(selectedRole) {
       );
     };
 
+    const reactionUpdatedHandler = ({ messageId, reactions }) => {
+      if (!messageId) return;
+      setMessages((previous) =>
+        previous.map((item) =>
+          item.id === messageId ? { ...item, reactions } : item
+        )
+      );
+    };
+
     const readHandler = ({ chatId, userId }) => {
       if (!chatId || !userId) return;
       if (String(userId) === String(currentUserId)) {
@@ -566,6 +584,7 @@ export default function useMessaging(selectedRole) {
     socket.on("chat.typing.start", typingStartHandler);
     socket.on("chat.typing.stop", typingStopHandler);
     socket.on("presence.changed", presenceHandler);
+    socket.on("message.reaction.updated", reactionUpdatedHandler);
 
     return () => {
       socket.off("message.created", createdHandler);
@@ -575,6 +594,7 @@ export default function useMessaging(selectedRole) {
       socket.off("chat.typing.start", typingStartHandler);
       socket.off("chat.typing.stop", typingStopHandler);
       socket.off("presence.changed", presenceHandler);
+      socket.off("message.reaction.updated", reactionUpdatedHandler);
     };
   }, [currentUserId, selectedChatId]);
 
@@ -694,6 +714,7 @@ export default function useMessaging(selectedRole) {
     setMessageSearchQuery,
     isSending,
     sendCurrentMessage,
+    toggleReaction,
     createDirectChat,
     jumpToMessage,
     error,

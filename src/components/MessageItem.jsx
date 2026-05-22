@@ -1,5 +1,5 @@
-import React from "react";
-import { Pencil, Trash2, PencilLine, Reply, Forward } from "lucide-react";
+import React, { useState } from "react";
+import { Pencil, Trash2, PencilLine, Reply, Forward, SmilePlus } from "lucide-react";
 import { API_BASE } from "../services/api";
 
 const BACKEND_BASE = API_BASE.replace(/\/api$/, "");
@@ -67,6 +67,7 @@ export default function MessageItem({
   onEdit,
   onDelete,
   onReply,
+  onToggleReaction,
   isEditing = false,
   isHighlighted = false,
   innerRef = null
@@ -83,6 +84,18 @@ export default function MessageItem({
   const createdLabel = createdAt && !Number.isNaN(createdAt.getTime())
     ? createdAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : "";
+
+  const [showPicker, setShowPicker] = useState(false);
+  const commonEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥"];
+
+  // Group reactions by emoji
+  const groupedReactions = Array.isArray(message.reactions)
+    ? message.reactions.reduce((acc, curr) => {
+        if (!acc[curr.emoji]) acc[curr.emoji] = [];
+        acc[curr.emoji].push(curr.userId);
+        return acc;
+      }, {})
+    : {};
 
   return (
     <div className={`message-row ${isMine ? "mine" : "theirs"}`} ref={innerRef} data-message-id={message.id}>
@@ -141,20 +154,67 @@ export default function MessageItem({
             {isMine && message.isRead ? " · seen" : ""}
           </small>
 
-          {isMine && !message.isDeleted ? (
+          {!message.isDeleted ? (
             <div className="message-actions">
+              <div className="reaction-picker-container">
+                <button
+                  type="button"
+                  onClick={() => setShowPicker(!showPicker)}
+                  title="React"
+                >
+                  <SmilePlus size={12} />
+                </button>
+                {showPicker && (
+                  <div className="reaction-picker-popover">
+                    {commonEmojis.map(e => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => {
+                          onToggleReaction?.(message.id, e);
+                          setShowPicker(false);
+                        }}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button type="button" onClick={() => onReply?.(message)} title="Reply">
                 <Reply size={12} />
               </button>
-              <button type="button" onClick={() => onEdit?.(message)} disabled={isEditing} title="Edit">
-                <Pencil size={12} />
-              </button>
-              <button type="button" onClick={() => onDelete?.(message.id)} title="Delete">
-                <Trash2 size={12} />
-              </button>
+              {isMine ? (
+                <>
+                  <button type="button" onClick={() => onEdit?.(message)} disabled={isEditing} title="Edit">
+                    <Pencil size={12} />
+                  </button>
+                  <button type="button" onClick={() => onDelete?.(message.id)} title="Delete">
+                    <Trash2 size={12} />
+                  </button>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>
+        
+        {Object.keys(groupedReactions).length > 0 && !message.isDeleted ? (
+          <div className="message-reactions-row">
+            {Object.entries(groupedReactions).map(([emoji, userIds]) => {
+              const hasReacted = userIds.includes(currentUserId);
+              return (
+                <button
+                  key={emoji}
+                  className={`reaction-bubble ${hasReacted ? "active" : ""}`}
+                  onClick={() => onToggleReaction?.(message.id, emoji)}
+                  type="button"
+                >
+                  {emoji} <small>{userIds.length}</small>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {isMine ? <span className="message-avatar mine">{initials}</span> : null}

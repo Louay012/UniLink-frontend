@@ -9,6 +9,7 @@ export default function ChatBox({
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
+  onToggleReaction,
   editingMessageId,
   highlightedMessageId,
   hasOlderMessages = false,
@@ -127,6 +128,7 @@ export default function ChatBox({
           onEdit={onEditMessage}
           onDelete={onDeleteMessage}
           onReply={onReplyMessage}
+          onToggleReaction={onToggleReaction}
           isEditing={editingMessageId === message.id}
           isHighlighted={highlightedMessageId === message.id}
           innerRef={(node) => {
