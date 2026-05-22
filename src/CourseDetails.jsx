@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Paperclip, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, Trash2, X } from 'lucide-react';
 
 import { useAuth } from './context/AuthContext';
+import { useToast } from './context/ToastContext';
+import { useNotificationContext } from './context/NotificationContext';
 import {
   getCourse,
   listCourseAnnouncements,
   listCourseAttachments,
   createCourseAnnouncement,
+  createCourseAnnouncementWithFiles,
   listCourseChats,
   listChatMessages,
   sendChatMessage
 } from './services/course.service';
-import AnnouncementCard from './mywork/components/AnnouncementCard';
-import AttachmentPreview from './mywork/components/AttachmentPreview';
+import AnnouncementCard from './components/AnnouncementCard';
+import AttachmentPreview from './components/AttachmentPreview';
 import ChatBox from './components/ChatBox';
 
 function pickColor(seed) {
@@ -32,8 +35,10 @@ function mapAnnouncement(announcement, teacherName) {
     title: announcement.title,
     content: announcement.body,
     timestamp: announcement.createdAt,
-    author: teacherName || 'Teacher',
-    visualType: announcement.priority === 'URGENT' ? 'URGENT' : 'NORMAL'
+    author: announcement.authorName || teacherName || 'Teacher',
+    authorId: announcement.authorId || announcement.createdBy,
+    visualType: announcement.priority === 'URGENT' ? 'URGENT' : 'NORMAL',
+    attachments: announcement.attachments || []
   };
 }
 
@@ -41,6 +46,8 @@ export default function CourseDetails({ basePath = '' }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { selectedRole } = useAuth();
+  const toast = useToast();
+  const { dismissByCourseId } = useNotificationContext();
 
   const [activeTab, setActiveTab] = useState('content');
   const [course, setCourse] = useState(null);
@@ -52,22 +59,15 @@ export default function CourseDetails({ basePath = '' }) {
   const [messageDraft, setMessageDraft] = useState('');
   const [currentUserId, setCurrentUserId] = useState(selectedRole?.userId || null);
   const [chatLoading, setChatLoading] = useState(false);
-  const [chatError, setChatError] = useState('');
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementForm, setAnnouncementForm] = useState({
     title: '',
     body: '',
-    priority: 'NORMAL',
-    attachmentName: '',
-    attachmentUrl: '',
-    attachmentType: '',
-    attachmentSize: ''
+    priority: 'NORMAL'
   });
   const [announcementFiles, setAnnouncementFiles] = useState([]);
   const [postingAnnouncement, setPostingAnnouncement] = useState(false);
-  const [postError, setPostError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const fileInputRef = useRef(null);
   const withBase = (path) => `${basePath}${path}`;
   const cardColor = course?.color || pickColor(course?.code || id);
@@ -75,8 +75,6 @@ export default function CourseDetails({ basePath = '' }) {
 
   const loadCourseData = useCallback(async () => {
     setLoading(true);
-    setError('');
-    setChatError('');
 
     try {
       const [coursePayload, announcementsPayload, attachmentsPayload] = await Promise.all([
@@ -129,7 +127,7 @@ export default function CourseDetails({ basePath = '' }) {
           messageCount: Number(chat.messageCount ?? chat.message_count ?? 0)
         }));
       } catch (chatLoadError) {
-        setChatError(chatLoadError.message || 'Could not load messaging for this course.');
+        toast.error(chatLoadError.message || 'Could not load messaging for this course.', 'Chat');
       }
 
       setCourse(normalizedCourse);
@@ -142,8 +140,11 @@ export default function CourseDetails({ basePath = '' }) {
         }
         return chatsItems[0]?.id || null;
       });
+
+      // Auto-dismiss all notifications for this course
+      dismissByCourseId(id);
     } catch (err) {
-      setError(err.message || 'Failed to load course details.');
+      toast.error(err.message || 'Failed to load course details.', 'Course Error');
     } finally {
       setLoading(false);
     }
@@ -171,9 +172,7 @@ export default function CourseDetails({ basePath = '' }) {
         }
         setChatMessages(payload.items || []);
       } catch (chatMessageError) {
-        if (active) {
-          setChatError(chatMessageError.message || 'Failed to load chat messages.');
-        }
+        if (active) toast.error(chatMessageError.message || 'Failed to load chat messages.', 'Chat');
       } finally {
         if (active) {
           setChatLoading(false);
@@ -202,7 +201,7 @@ export default function CourseDetails({ basePath = '' }) {
       }
       setChatMessages(payload.items || []);
     } catch (sendError) {
-      setChatError(sendError.message || 'Failed to send message.');
+      toast.error(sendError.message || 'Failed to send message.', 'Chat');
     }
   }
 
@@ -210,7 +209,6 @@ export default function CourseDetails({ basePath = '' }) {
     event.preventDefault();
     if (!isTeacherView) return;
 
-    setPostError('');
     setPostingAnnouncement(true);
     try {
       const payload = {
@@ -219,32 +217,26 @@ export default function CourseDetails({ basePath = '' }) {
         priority: announcementForm.priority
       };
 
-      const attachmentUrl = announcementForm.attachmentUrl.trim();
-      if (attachmentUrl) {
-        payload.attachmentUrl = attachmentUrl;
-        payload.attachmentName = announcementForm.attachmentName.trim() || 'Attachment';
-        payload.attachmentType = announcementForm.attachmentType.trim() || null;
-        payload.attachmentSize = announcementForm.attachmentSize.trim()
-          ? Number(announcementForm.attachmentSize)
-          : null;
+      // Use file upload endpoint if files are staged, otherwise plain JSON
+      const rawFiles = announcementFiles.map((f) => f.file).filter(Boolean);
+      if (rawFiles.length > 0) {
+        await createCourseAnnouncementWithFiles(selectedRole, id, payload, rawFiles);
+      } else {
+        await createCourseAnnouncement(selectedRole, id, payload);
       }
 
-      await createCourseAnnouncement(selectedRole, id, payload);
+      toast.success('Announcement posted successfully.', 'Posted!');
       setAnnouncementForm({
         title: '',
         body: '',
-        priority: 'NORMAL',
-        attachmentName: '',
-        attachmentUrl: '',
-        attachmentType: '',
-        attachmentSize: ''
+        priority: 'NORMAL'
       });
       setAnnouncementFiles([]);
       setShowAnnouncementForm(false);
       await loadCourseData();
       setActiveTab('content');
     } catch (submitError) {
-      setPostError(submitError.message || 'Failed to create announcement.');
+      toast.error(submitError.message || 'Failed to create announcement.', 'Post Error');
     } finally {
       setPostingAnnouncement(false);
     }
@@ -255,14 +247,12 @@ export default function CourseDetails({ basePath = '' }) {
   }
 
   function openAnnouncementComposer() {
-    setPostError('');
     setShowAnnouncementForm(true);
   }
 
   function closeAnnouncementComposer() {
     if (postingAnnouncement) return;
     setShowAnnouncementForm(false);
-    setPostError('');
     setAnnouncementFiles([]);
     setAnnouncementForm({
       title: '',
@@ -400,86 +390,142 @@ export default function CourseDetails({ basePath = '' }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
+      {/* ── Hero ── */}
       <div
-        className="h-40 w-full relative"
-        style={{
-          background: `linear-gradient(135deg, ${cardColor} 0%, ${cardColor}dd 100%)`
-        }}
+        className="h-48 w-full relative"
+        style={{ background: `linear-gradient(135deg, ${cardColor} 0%, ${cardColor}cc 100%)` }}
       >
+        {/* dark overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+
+        {/* Back button — pinned top-left */}
         <div className="absolute top-4 left-4 z-20">
           <button
             onClick={handleBack}
-            className="flex items-center gap-2 text-white hover:bg-white hover:bg-opacity-20 px-4 py-2 rounded-lg transition-all"
+            className="flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/20 px-3 py-1.5 rounded-lg transition-all text-sm font-medium"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={16} />
             Back
           </button>
         </div>
 
-        <div className="absolute inset-0 flex items-end p-8 pointer-events-none">
-          <div className="text-white max-w-7xl mx-auto w-full">
-            <p className="text-sm font-semibold opacity-90">{course.code}</p>
-            <h1 className="text-4xl font-bold mt-2">{course.title}</h1>
-            <p className="text-white opacity-90 mt-2">👨‍🏫 {course.teacher?.name || 'Unknown Teacher'}</p>
-          </div>
+        {/* Course title block — bottom-left, padded below back button */}
+        <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 z-10">
+          <p className="text-[0.72rem] font-bold uppercase tracking-widest text-white/70 mb-1">
+            {course.code}
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+            {course.title}
+          </h1>
+          <p className="text-sm text-white/80 mt-1">
+            👨‍🏫 {course.teacher?.name || 'Unknown Teacher'}
+          </p>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ── */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-8 overflow-x-auto">
+          <div className="flex gap-0 overflow-x-auto">
             {[
-              { id: 'content', label: 'Content' },
-              { id: 'attachments', label: `Attachments (${streamStats.attachments})` },
-              { id: 'messaging', label: 'Messaging' }
+              {
+                id: 'content',
+                label: 'Announcements',
+                badge: streamStats.announcements || null
+              },
+              {
+                id: 'attachments',
+                label: 'Files',
+                badge: streamStats.attachments || null
+              },
+              {
+                id: 'messaging',
+                label: 'Messaging',
+                badge: null
+              }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-4 font-semibold border-b-2 transition-all whitespace-nowrap ${
+                className={`relative flex items-center gap-1.5 px-4 py-3.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
                 }`}
               >
                 {tab.label}
+                {tab.badge ? (
+                  <span className={`inline-flex items-center justify-center min-w-[18px] h-4.5 px-1 text-[10px] font-bold rounded-full ${
+                    activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {error ? (
-        <div className="mx-4 mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6 lg:mx-8">
-          {error}
+      {/* ── Course Info Card ── */}
+      <div className="max-w-7xl mx-auto px-4 pt-6 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="flex items-center gap-1.5 text-sm text-slate-600">
+            <span className="text-base">📚</span>
+            <span className="font-mono font-semibold text-slate-800">{course.code}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-slate-600">
+            <span className="text-base">👨‍🏫</span>
+            <span>{course.teacher?.name || 'Unknown Teacher'}</span>
+          </div>
+          {course.classGroupCode && (
+            <div className="flex items-center gap-1.5 text-sm text-slate-600">
+              <span className="text-base">🏫</span>
+              <span>Class: <span className="font-semibold">{course.classGroupCode}</span></span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 text-sm text-slate-600">
+            <span className="text-base">📝</span>
+            <span>{streamStats.announcements} announcement{streamStats.announcements !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-slate-600">
+            <span className="text-base">📎</span>
+            <span>{streamStats.attachments} file{streamStats.attachments !== 1 ? 's' : ''}</span>
+          </div>
+          {course.isCourseChatEnabled && (
+            <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+              <span className="text-base">💬</span>
+              <span>Chat enabled</span>
+            </div>
+          )}
         </div>
-      ) : null}
+      </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      {/* ── Tab Content ── */}
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {activeTab === 'content' && (
           <div className="space-y-4">
             {isTeacherView ? (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-slate-900">Announcements</h3>
-                  <button
-                    type="button"
-                    onClick={openAnnouncementComposer}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                  >
-                    Create Post
-                  </button>
-                </div>
-              </section>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-900">Announcements</h2>
+                <button
+                  type="button"
+                  onClick={openAnnouncementComposer}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-all"
+                >
+                  + Create Post
+                </button>
+              </div>
             ) : null}
 
             <div className="space-y-4">
               {announcements.length > 0 ? (
                 announcements.map((announcement) => (
-                  <AnnouncementCard key={announcement.id} announcement={announcement} />
+                  <AnnouncementCard
+                    key={announcement.id}
+                    announcement={announcement}
+                    courseColor={cardColor}
+                  />
                 ))
               ) : (
                 <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
@@ -540,14 +586,20 @@ export default function CourseDetails({ basePath = '' }) {
                     isDirect={selectedChat.chatType === 'DIRECT'}
                   />
 
-                  <form className="message-form mt-3" onSubmit={handleSendMessage}>
+                  <form className="flex gap-2 mt-3" onSubmit={handleSendMessage}>
                     <input
                       type="text"
                       value={messageDraft}
                       placeholder="Type your message"
-                      onChange={(event) => setMessageDraft(event.target.value)}
+                      onChange={(e) => setMessageDraft(e.target.value)}
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
                     />
-                    <button type="submit">Send</button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all"
+                    >
+                      <Send size={14} /> Send
+                    </button>
                   </form>
                 </>
               ) : null}
@@ -560,167 +612,152 @@ export default function CourseDetails({ basePath = '' }) {
         )}
       </div>
 
+      {/* ── Announcement Composer Modal (Teacher only) ── */}
       {showAnnouncementForm && isTeacherView ? (
         <div
-          className="announcement-modal-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           role="presentation"
           onClick={closeAnnouncementComposer}
         >
           <div
-            className="announcement-modal-panel"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="announcement-modal-title"
-            onClick={(event) => event.stopPropagation()}
+            aria-labelledby="ann-modal-title"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="announcement-modal-header">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between p-6 border-b border-slate-200">
               <div>
-                <p className="announcement-modal-kicker">Teacher post composer</p>
-                <h3 id="announcement-modal-title">Create Post</h3>
-                <p className="announcement-modal-subtitle">
-                  Publish a course announcement and stage local files for the upload pipeline.
+                <p className="text-[0.72rem] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
+                  Teacher post composer
+                </p>
+                <h3 id="ann-modal-title" className="text-lg font-extrabold text-slate-900">
+                  Create Announcement
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Publish a course announcement for all enrolled students.
                 </p>
               </div>
               <button
                 type="button"
-                className="announcement-modal-close"
                 onClick={closeAnnouncementComposer}
-                aria-label="Close composer"
+                className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all ml-4 shrink-0"
+                aria-label="Close"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form className="announcement-modal-form" onSubmit={handleSubmitAnnouncement}>
-              <div className="announcement-modal-grid">
-                <label className="announcement-field announcement-field-wide">
-                  <span>Title</span>
-                  <input
-                    type="text"
-                    value={announcementForm.title}
-                    onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, title: event.target.value }))}
-                    placeholder="Announcement title"
-                    required
-                  />
-                </label>
+            {/* Modal Form */}
+            <form className="p-6 flex flex-col gap-5" onSubmit={handleSubmitAnnouncement}>
 
-                <label className="announcement-field">
-                  <span>Priority</span>
-                  <select
-                    value={announcementForm.priority}
-                    onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, priority: event.target.value }))}
-                  >
-                    <option value="NORMAL">Normal</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                </label>
-
-                <label className="announcement-field announcement-field-wide">
-                  <span>Content</span>
-                  <textarea
-                    value={announcementForm.body}
-                    onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, body: event.target.value }))}
-                    placeholder="Write the announcement..."
-                    required
-                  />
-                </label>
-
-                <div className="announcement-field announcement-field-wide">
-                  <span>Files from your device</span>
-                  <div className="announcement-upload-panel">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      onChange={handleAnnouncementFileChange}
-                      className="announcement-file-input"
-                    />
-                    <p className="announcement-helper-text">
-                      Select multiple files at once. They are previewed here now; backend upload support is still required before they can be sent with the post.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="announcement-field announcement-field-wide">
-                  <div className="announcement-files-header">
-                    <span>Selected files</span>
-                    <span>{announcementFiles.length} staged</span>
-                  </div>
-
-                  {announcementFiles.length ? (
-                    <div className="announcement-file-list">
-                      {announcementFiles.map((item) => (
-                        <div key={item.id} className="announcement-file-item">
-                          <div className="announcement-file-main">
-                            <Paperclip size={14} />
-                            <div>
-                              <strong>{item.name}</strong>
-                              <p>{[item.type || 'Unknown type', formatFileSize(item.size)].filter(Boolean).join(' · ')}</p>
-                            </div>
-                          </div>
-                          <button type="button" className="announcement-file-remove" onClick={() => removeAnnouncementFile(item.id)}>
-                            <Trash2 size={14} />
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="announcement-helper-text">No local files selected yet.</p>
-                  )}
-                </div>
-
-                <div className="announcement-field announcement-field-wide announcement-field-advanced">
-                  <span>External attachment metadata (optional)</span>
-                  <div className="announcement-advanced-grid">
-                    <label>
-                      <span>Attachment URL</span>
-                      <input
-                        type="url"
-                        value={announcementForm.attachmentUrl}
-                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentUrl: event.target.value }))}
-                        placeholder="https://..."
-                      />
-                    </label>
-                    <label>
-                      <span>File name</span>
-                      <input
-                        type="text"
-                        value={announcementForm.attachmentName}
-                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentName: event.target.value }))}
-                        placeholder="File title"
-                      />
-                    </label>
-                    <label>
-                      <span>MIME type</span>
-                      <input
-                        type="text"
-                        value={announcementForm.attachmentType}
-                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentType: event.target.value }))}
-                        placeholder="application/pdf"
-                      />
-                    </label>
-                    <label>
-                      <span>File size in bytes</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={announcementForm.attachmentSize}
-                        onChange={(event) => setAnnouncementForm((prev) => ({ ...prev, attachmentSize: event.target.value }))}
-                        placeholder="102400"
-                      />
-                    </label>
-                  </div>
-                </div>
+              {/* Title */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="ann-title" className="text-sm font-semibold text-slate-700">Title</label>
+                <input
+                  id="ann-title"
+                  type="text"
+                  value={announcementForm.title}
+                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, title: e.target.value }))}
+                  placeholder="Announcement title"
+                  required
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+                />
               </div>
 
-              {postError ? <p className="announcement-modal-error">{postError}</p> : null}
+              {/* Priority */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="ann-priority" className="text-sm font-semibold text-slate-700">Priority</label>
+                <select
+                  id="ann-priority"
+                  value={announcementForm.priority}
+                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, priority: e.target.value }))}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+                >
+                  <option value="NORMAL">Normal</option>
+                  <option value="URGENT">🔴 Urgent</option>
+                </select>
+              </div>
 
-              <div className="announcement-modal-footer">
-                <button type="button" className="announcement-modal-secondary" onClick={closeAnnouncementComposer} disabled={postingAnnouncement}>
+              {/* Content */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="ann-body" className="text-sm font-semibold text-slate-700">Content</label>
+                <textarea
+                  id="ann-body"
+                  rows={5}
+                  value={announcementForm.body}
+                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, body: e.target.value }))}
+                  placeholder="Write the announcement..."
+                  required
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                />
+              </div>
+
+              {/* File picker */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-sm font-semibold text-slate-700">Attach files <span className="font-normal text-slate-400">(optional)</span></p>
+                <label className="flex items-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 hover:border-indigo-300 hover:bg-indigo-50 transition-all">
+                  <Paperclip size={15} />
+                  Click to select files
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleAnnouncementFileChange}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-xs text-slate-400">Select multiple files. Upload pipeline required before they are sent.</p>
+              </div>
+
+              {/* Staged files */}
+              {announcementFiles.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-semibold text-slate-700">{announcementFiles.length} file{announcementFiles.length !== 1 ? 's' : ''} staged</p>
+                  <div className="flex flex-col gap-1.5">
+                    {announcementFiles.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip size={13} className="text-slate-400 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{item.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {[item.type || 'Unknown', formatFileSize(item.size)].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAnnouncementFile(item.id)}
+                          className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-semibold shrink-0"
+                        >
+                          <Trash2 size={13} /> Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+
+
+
+              {/* Footer actions */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeAnnouncementComposer}
+                  disabled={postingAnnouncement}
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-50"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="announcement-modal-primary" disabled={postingAnnouncement}>
+                <button
+                  type="submit"
+                  disabled={postingAnnouncement}
+                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all disabled:opacity-50"
+                >
                   {postingAnnouncement ? 'Posting...' : 'Post announcement'}
                 </button>
               </div>
@@ -729,11 +766,6 @@ export default function CourseDetails({ basePath = '' }) {
         </div>
       ) : null}
 
-      {chatError ? (
-        <div className="mx-4 mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 sm:mx-6 lg:mx-8">
-          {chatError}
-        </div>
-      ) : null}
     </div>
   );
 }

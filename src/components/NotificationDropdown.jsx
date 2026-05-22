@@ -42,22 +42,20 @@ function groupByDay(items) {
   return groups;
 }
 
-const ICONS = {
-  announcement: Bell,
-  message: MessageCircle,
-  file: Paperclip
+const ICON_MAP = {
+  announcement: { Icon: Bell,           bg: "bg-amber-500/15", text: "text-amber-700" },
+  message:      { Icon: MessageCircle,  bg: "bg-blue-500/15",  text: "text-blue-700" },
+  file:         { Icon: Paperclip,      bg: "bg-emerald-500/15", text: "text-emerald-700" },
 };
 
 function NotificationItem({ item, onClose, onDismiss }) {
   const navigate = useNavigate();
-  const Icon = ICONS[item.type] || Bell;
+  const { Icon, bg, text } = ICON_MAP[item.type] || ICON_MAP.announcement;
 
   function handleClick() {
-    // Mark as read first
     if (!item.read && onDismiss) {
       onDismiss(item.id);
     }
-    // Navigate to the target
     if (item.link) {
       navigate(item.link);
     }
@@ -67,17 +65,28 @@ function NotificationItem({ item, onClose, onDismiss }) {
   return (
     <button
       type="button"
-      className={`notif-item ${item.read ? "read" : "unread"}`}
       onClick={handleClick}
+      className={`flex items-start gap-2.5 w-full px-2.5 py-2.5 border-0 rounded-xl text-left cursor-pointer transition-colors
+        ${item.read
+          ? "bg-transparent hover:bg-slate-50"
+          : "bg-sky-500/[0.06] hover:bg-sky-500/[0.1]"
+        }`}
     >
-      <span className={`notif-icon notif-icon-${item.type || "announcement"}`}>
+      {/* Icon */}
+      <span className={`inline-flex items-center justify-center w-[30px] h-[30px] flex-shrink-0 rounded-lg mt-0.5 ${bg} ${text}`}>
         <Icon size={14} />
       </span>
-      <div className="notif-body">
-        <p className="notif-title">{item.title}</p>
-        <p className="notif-subtitle">{item.subtitle}</p>
+
+      {/* Body */}
+      <div className="flex-1 min-w-0">
+        <p className="m-0 text-[0.82rem] font-bold text-slate-800 truncate">{item.title}</p>
+        <p className="m-0 mt-0.5 text-[0.74rem] text-slate-400 truncate">{item.subtitle}</p>
       </div>
-      <small className="notif-time">{timeAgo(item.timestamp)}</small>
+
+      {/* Time */}
+      <small className="flex-shrink-0 text-[0.68rem] text-slate-400 whitespace-nowrap mt-0.5">
+        {timeAgo(item.timestamp)}
+      </small>
     </button>
   );
 }
@@ -86,8 +95,10 @@ function NotificationGroup({ label, items, onClose, onDismiss }) {
   if (!items.length) return null;
 
   return (
-    <div className="notif-group">
-      <p className="notif-group-label">{label}</p>
+    <div className="mb-1">
+      <p className="m-0 px-2.5 pt-2 pb-1 text-[0.7rem] font-extrabold uppercase tracking-wider text-slate-400">
+        {label}
+      </p>
       {items.map((item) => (
         <NotificationItem key={item.id} item={item} onClose={onClose} onDismiss={onDismiss} />
       ))}
@@ -105,30 +116,50 @@ export default function NotificationDropdown({ notifications = [], onClose, onMa
   const unreadCount = sorted.filter((n) => !n.read).length;
 
   return (
-    <div className="notif-dropdown">
-      <div className="notif-header">
+    <div
+      className="w-[380px] max-sm:w-[min(360px,calc(100vw-1.5rem))] max-h-[520px] rounded-2xl border border-slate-200 bg-white flex flex-col overflow-hidden"
+      style={{
+        boxShadow: "0 20px 50px rgba(2,6,23,0.18), 0 0 0 1px rgba(2,6,23,0.04)",
+        animation: "notif-slide-in 200ms cubic-bezier(0.16,1,0.3,1)",
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
         <div>
-          <h4>Notifications</h4>
-          {unreadCount > 0 && <span className="notif-header-count">{unreadCount} new</span>}
+          <h4 className="text-[0.95rem] font-extrabold text-slate-800 m-0 font-heading">Notifications</h4>
+          {unreadCount > 0 && (
+            <span className="text-[0.72rem] font-bold text-red-500">{unreadCount} new</span>
+          )}
         </div>
-        <div className="notif-header-actions">
+        <div className="flex items-center gap-1">
           {unreadCount > 0 && onMarkAllRead && (
-            <button type="button" className="notif-mark-all" onClick={onMarkAllRead} title="Mark all as read">
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              title="Mark all as read"
+              className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border-0 bg-transparent text-sky-700 text-xs font-bold cursor-pointer hover:bg-sky-500/10 transition-colors"
+            >
               <CheckCheck size={14} /> Mark all read
             </button>
           )}
-          <button type="button" className="notif-close" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent text-slate-400 cursor-pointer hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          >
             <X size={16} />
           </button>
         </div>
       </div>
 
-      <div className="notif-list">
+      {/* List */}
+      <div className="flex-1 overflow-y-auto p-1">
         {!hasAny && (
-          <div className="notif-empty">
+          <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-400">
             <Bell size={28} />
-            <p>You're all caught up!</p>
-            <small>No new notifications</small>
+            <p className="m-0 mt-2 font-bold text-slate-700 text-[0.92rem]">You're all caught up!</p>
+            <small className="mt-0.5 text-sm">No new notifications</small>
           </div>
         )}
 

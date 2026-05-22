@@ -11,16 +11,23 @@ async function apiRequest(path, roleOrOptions = {}, maybeOptions = null) {
 
   const isFormData = options.body instanceof FormData;
 
+  const headers = {
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(roleContext?.value ? { "x-unilink-role": roleContext.value } : {}),
+    ...(roleContext?.userId ? { "x-unilink-user-id": roleContext.userId } : {}),
+    ...options.headers,
+  };
+
+  // Remove Content-Type if FormData (browser must set boundary)
+  if (isFormData) {
+    delete headers["Content-Type"];
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     method: options.method || "GET",
     ...options,
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(roleContext?.value ? { "x-unilink-role": roleContext.value } : {}),
-      ...(roleContext?.userId ? { "x-unilink-user-id": roleContext.userId } : {}),
-      ...options.headers,
-    },
+    headers,
   });
 
   const payload = await response.json();

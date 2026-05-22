@@ -115,6 +115,14 @@ async function deleteMessage(selectedRole, chatId, messageId) {
   });
 }
 
+async function toggleMessageReaction(selectedRole, chatId, messageId, emoji) {
+  return apiRequest(`/chats/${chatId}/messages/${messageId}/reactions`, selectedRole, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ emoji })
+  });
+}
+
 async function markChatRead(selectedRole, chatId) {
   return apiRequest(`/chats/${chatId}/read`, selectedRole, {
     method: "POST"
@@ -137,6 +145,7 @@ export {
   sendMessageWithFiles,
   editMessage,
   deleteMessage,
+  toggleMessageReaction,
   markChatRead,
   deleteChat
 };

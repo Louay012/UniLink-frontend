@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
+
 import {
   listCourses,
   listCourseAnnouncements,
@@ -27,7 +29,6 @@ function getGreeting() {
   return "Good evening";
 }
 
-// Deterministic color from course id / title so it is stable across renders
 const COURSE_COLORS = [
   "#6366f1", "#0ea5e9", "#10b981", "#f59e0b",
   "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"
@@ -45,13 +46,16 @@ function courseColor(id = "") {
 
 function StatCard({ icon: Icon, value, label, color }) {
   return (
-    <div className="dash-stat-card" style={{ "--stat-color": color }}>
-      <div className="dash-stat-icon">
+    <div className="flex items-center gap-4 bg-white border border-slate-200 rounded-xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-lg">
+      <div
+        className="flex items-center justify-center w-11 h-11 rounded-xl shrink-0"
+        style={{ background: `${color}18`, color }}
+      >
         <Icon size={20} />
       </div>
-      <div className="dash-stat-body">
-        <h3 className="dash-stat-value">{value}</h3>
-        <p className="dash-stat-label">{label}</p>
+      <div>
+        <h3 className="font-heading text-3xl font-extrabold text-slate-900 leading-none">{value}</h3>
+        <p className="text-xs font-semibold text-slate-500 mt-1">{label}</p>
       </div>
     </div>
   );
@@ -64,29 +68,35 @@ function CourseCard({ course, onClick }) {
   return (
     <button
       type="button"
-      className="dash-course-card"
+      className="group flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden text-left cursor-pointer p-0 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:border-indigo-200"
       onClick={onClick}
     >
-      <div className="dash-course-banner" style={{ background: color }} />
-      <div className="dash-course-content">
-        <div className="dash-course-top">
-          <span className="dash-course-code">{course.code}</span>
+      <div className="h-12 w-full shrink-0" style={{ background: color }} />
+      <div className="p-4 flex flex-col gap-0.5 flex-1">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">
+            {course.code}
+          </span>
           {hasUnread && (
-            <span className="dash-course-badge">{course.unreadCount}</span>
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[0.65rem] font-bold rounded-full animate-pulse-badge">
+              {course.unreadCount}
+            </span>
           )}
         </div>
-        <h4 className="dash-course-title">{course.title}</h4>
-        <p className="dash-course-teacher">
+        <h4 className="font-heading text-sm font-extrabold text-slate-900 leading-tight">{course.title}</h4>
+        <p className="text-xs text-slate-500 mt-0.5 mb-1">
           {course.teacher?.name || "Unknown Teacher"}
         </p>
         {course.description && (
-          <p className="dash-course-desc">{course.description}</p>
+          <p className="text-xs text-slate-400 leading-relaxed line-clamp-2 mt-0.5">
+            {course.description}
+          </p>
         )}
-        <div className="dash-course-meta">
+        <div className="flex gap-3 text-[0.72rem] text-slate-400 font-semibold mt-1">
           <span>{course.attachments?.length ?? 0} files</span>
           <span>{course.announcements?.length ?? 0} announcements</span>
         </div>
-        <span className="dash-course-open">
+        <span className="inline-flex items-center gap-0.5 text-xs font-bold text-indigo-500 mt-2 transition-all group-hover:gap-1.5">
           Open <ChevronRight size={13} />
         </span>
       </div>
@@ -98,10 +108,10 @@ function QuickAction({ icon: Icon, label, to, navigate }) {
   return (
     <button
       type="button"
-      className="dash-quick-action"
+      className="flex flex-col items-center gap-2 py-4 px-2 bg-white border border-slate-200 rounded-xl cursor-pointer text-sm font-bold text-slate-700 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:border-indigo-300 hover:text-indigo-500 group"
       onClick={() => navigate(to)}
     >
-      <span className="dash-quick-icon">
+      <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-500/15">
         <Icon size={17} />
       </span>
       <span>{label}</span>
@@ -115,10 +125,10 @@ export default function StudentDashboard() {
   const { user, selectedRole, token } = useAuth();
   const navigate = useNavigate();
 
+  const toast = useToast();
   const [courses, setCourses] = useState([]);
   const [courseBundles, setCourseBundles] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
 
   /* redirect if not logged in */
   useEffect(() => {
@@ -129,7 +139,6 @@ export default function StudentDashboard() {
   useEffect(() => {
     let active = true;
     setIsLoading(true);
-    setError("");
 
     async function load() {
       try {
@@ -157,7 +166,8 @@ export default function StudentDashboard() {
         if (!active) return;
         setCourseBundles(Object.fromEntries(bundles));
       } catch (e) {
-        if (active) setError(e.message || "Could not load dashboard data.");
+        if (active) toast.error(e.message || "Could not load dashboard data.", "Dashboard Error");
+
       } finally {
         if (active) setIsLoading(false);
       }
@@ -175,7 +185,7 @@ export default function StudentDashboard() {
         ...c,
         announcements: bundle.announcements,
         attachments: bundle.attachments,
-        unreadCount: bundle.announcements.length // all count as "new" (no per-message read tracking on dashboard)
+        unreadCount: bundle.announcements.length
       };
     }).sort((a, b) => {
       const aT = new Date(a.announcements[0]?.createdAt || a.updatedAt || 0).getTime();
@@ -217,43 +227,50 @@ export default function StudentDashboard() {
   ];
 
   return (
-    <div className="dash-shell">
+    <div className="flex flex-col gap-5 sm:gap-7 pb-8 w-full min-w-0 max-w-[1200px] mx-auto">
 
       {/* ── 1. Welcome Hero ── */}
-      <section className="dash-hero">
-        <div className="dash-hero-content">
-          <p className="dash-hero-tag">UniLink Student Portal</p>
-          <h1 className="dash-hero-title">{greeting}</h1>
-          <p className="dash-hero-sub">
-            {user?.classGroup
-              ? `${user.classGroup} · `
-              : ""}
+      <section className="relative rounded-xl sm:rounded-2xl p-5 sm:p-8 overflow-hidden flex items-center justify-between min-h-[110px] sm:min-h-[130px]"
+        style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0f172a 100%)" }}
+      >
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at 70% 50%, rgba(99,102,241,0.18) 0%, transparent 70%)" }}
+        />
+        <div className="relative z-10">
+          <p className="text-[0.72rem] font-bold uppercase tracking-widest text-white/50 mb-1">UniLink Student Portal</p>
+          <h1 className="font-heading text-2xl md:text-3xl font-extrabold text-white mb-1 leading-tight">{greeting}</h1>
+          <p className="text-sm text-white/50">
+            {user?.classGroup ? `${user.classGroup} · ` : ""}
             {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
-        <div className="dash-hero-gfx" aria-hidden="true" />
+        <div className="absolute -right-10 -top-10 w-56 h-56 rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)" }}
+          aria-hidden="true"
+        />
       </section>
 
-      {error && <div className="error-banner">{error}</div>}
-
       {/* ── 2. Stats Row ── */}
-      <section className="dash-stats" aria-label="Overview statistics">
+      <section
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        aria-label="Overview statistics"
+      >
         {stats.map((s) => (
           <StatCard key={s.label} {...s} />
         ))}
       </section>
 
       {/* ── 3. My Courses ── */}
-      <section className="dash-section">
-        <div className="dash-section-header">
+      <section className="flex flex-col gap-4">
+        <div className="flex items-end justify-between">
           <div>
-            <p className="dash-section-kicker">This Semester</p>
-            <h2 className="dash-section-title">My Courses</h2>
+            <p className="text-[0.7rem] font-bold uppercase tracking-widest text-slate-400 mb-0.5">This Semester</p>
+            <h2 className="font-heading text-base font-extrabold text-slate-900">My Courses</h2>
           </div>
           {enrichedCourses.length > 4 && (
             <button
               type="button"
-              className="dash-view-all"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-500 hover:opacity-75 transition-opacity"
               onClick={() => navigate("/courses")}
             >
               View all <ArrowRight size={14} />
@@ -262,13 +279,13 @@ export default function StudentDashboard() {
         </div>
 
         {isLoading ? (
-          <div className="dash-course-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="dash-course-card dash-course-skeleton" />
+              <div key={i} className="h-40 rounded-xl bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100 bg-[length:200%_100%] animate-shimmer" />
             ))}
           </div>
         ) : topCourses.length ? (
-          <div className="dash-course-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {topCourses.map((course) => (
               <CourseCard
                 key={course.id}
@@ -278,14 +295,14 @@ export default function StudentDashboard() {
             ))}
           </div>
         ) : (
-          <p className="dash-empty">No courses enrolled yet.</p>
+          <p className="text-slate-400 text-sm py-4">No courses enrolled yet.</p>
         )}
 
         {!isLoading && enrichedCourses.length > 0 && (
-          <div style={{ textAlign: "center", marginTop: "1rem" }}>
+          <div className="text-center mt-4">
             <button
               type="button"
-              className="dash-view-all-btn"
+              className="inline-flex items-center gap-1.5 border-[1.5px] border-slate-200 rounded-lg px-4 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-500/5 transition-all"
               onClick={() => navigate("/courses")}
             >
               View all {enrichedCourses.length} courses <ArrowRight size={14} />
@@ -295,14 +312,14 @@ export default function StudentDashboard() {
       </section>
 
       {/* ── 4. Quick Actions ── */}
-      <section className="dash-section">
-        <div className="dash-section-header">
+      <section className="flex flex-col gap-4">
+        <div className="flex items-end justify-between">
           <div>
-            <p className="dash-section-kicker">Shortcuts</p>
-            <h2 className="dash-section-title">Quick Actions</h2>
+            <p className="text-[0.7rem] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Shortcuts</p>
+            <h2 className="font-heading text-base font-extrabold text-slate-900">Quick Actions</h2>
           </div>
         </div>
-        <div className="dash-quick-row">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {quickActions.map((a) => (
             <QuickAction key={a.label} {...a} navigate={navigate} />
           ))}
