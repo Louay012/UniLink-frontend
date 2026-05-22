@@ -1,5 +1,5 @@
 import React from "react";
-import LegacyDashboard from "../../LegacyDashboard";
+import StudentDashboard from "./StudentDashboard";
 import TeacherDashboard from "./TeacherDashboard";
 import { useAuth } from "../../context/AuthContext";
 
@@ -10,5 +10,5 @@ export default function DashboardPage() {
     return <TeacherDashboard />;
   }
 
-  return <LegacyDashboard />;
+  return <StudentDashboard />;
 }

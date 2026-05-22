@@ -8,12 +8,15 @@ export default function ChatBox({
   isDirect = false,
   onEditMessage,
   onDeleteMessage,
+  onReplyMessage,
   editingMessageId,
+  highlightedMessageId,
   hasOlderMessages = false,
   isLoadingOlderMessages = false,
   onLoadOlderMessages
 }) {
   const containerRef = useRef(null);
+  const messageRefs = useRef(new Map());
   const previousMetricsRef = useRef({ count: 0, lastId: null });
   const nearBottomRef = useRef(true);
   const pendingPrependRef = useRef(null);
@@ -25,6 +28,7 @@ export default function ChatBox({
     previousMetricsRef.current = { count: 0, lastId: null };
     pendingPrependRef.current = null;
     nearBottomRef.current = true;
+    messageRefs.current.clear();
   }, [chatId]);
 
   useEffect(() => {
@@ -100,6 +104,17 @@ export default function ChatBox({
     });
   }, [messages, isLoadingOlderMessages]);
 
+  useEffect(() => {
+    if (!highlightedMessageId) {
+      return;
+    }
+
+    const node = messageRefs.current.get(highlightedMessageId);
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [highlightedMessageId, messages]);
+
   return (
     <div className="message-feed" ref={containerRef}>
       {isLoadingOlderMessages ? <p className="message-loading-older">Loading older messages...</p> : null}
@@ -111,7 +126,16 @@ export default function ChatBox({
           isDirect={isDirect}
           onEdit={onEditMessage}
           onDelete={onDeleteMessage}
+          onReply={onReplyMessage}
           isEditing={editingMessageId === message.id}
+          isHighlighted={highlightedMessageId === message.id}
+          innerRef={(node) => {
+            if (node) {
+              messageRefs.current.set(message.id, node);
+            } else {
+              messageRefs.current.delete(message.id);
+            }
+          }}
         />
       ))}
       {!messages.length ? <p className="message-empty">No messages yet.</p> : null}

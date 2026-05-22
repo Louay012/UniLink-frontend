@@ -131,19 +131,17 @@ export default function CoursesPage({ basePath = '' }) {
         </div>
       ) : null}
 
-      {/* Courses List */}
-      <div className="w-full px-4 py-12 sm:px-6 lg:px-8 flex justify-center">
-        <div className="flex flex-wrap gap-6 justify-center ">
-          {loading ? (
-            <div className="w-full py-12 text-center text-slate-500">Loading courses...</div>
-          ) : (
-            visibleCourses.map((course) => (
-              <div key={course.id} className="w-[400px] h-[318px]">
-                <CourseCard course={course} basePath={basePath} />
-              </div>
-            ))
-          )}
-        </div>
+      {/* Courses Grid */}
+      <div className="max-w-7xl mx-auto px-4 py-10 sm:px-6 lg:px-8">
+        {loading ? (
+          <div className="w-full py-12 text-center text-slate-500">Loading courses...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {visibleCourses.map((course) => (
+              <CourseCard key={course.id} course={course} basePath={basePath} />
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
         {!loading && visibleCourses.length === 0 && (
@@ -157,3 +155,4 @@ export default function CoursesPage({ basePath = '' }) {
     </div>
   );
 }
+
