@@ -1,28 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { listCourses, listCourseAnnouncements, listCourseAttachments } from "../services/course.service";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { listCourses, listCourseAnnouncements, listCourseAttachments, getReadAnnouncementIds, getUnreadCounts, markAnnouncementsRead as apiMarkRead, markCourseAnnouncementsRead as apiMarkCourseRead } from "../services/course.service";
 import { listChats } from "../services/chat.service";
 import { connectSocket } from "../services/socket";
 
-const STORAGE_KEY = "unilink-notif-seen";
-
-function loadSeen() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return new Set(raw ? JSON.parse(raw) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveSeen(seen) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...seen]));
-  } catch { /* ignore */ }
-}
+// Only show notifications from the last 30 days
+const NOTIFICATION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default function useNotifications(selectedRole) {
   const [notifications, setNotifications] = useState([]);
-  const [seen, setSeen] = useState(loadSeen);
+  const [serverReadIds, setServerReadIds] = useState(new Set());
   const [loading, setLoading] = useState(false);
 
   // Real-time notifications via Socket.IO
@@ -33,7 +19,6 @@ export default function useNotifications(selectedRole) {
     function handleNotification(notif) {
       if (!notif || !notif.id) return;
       setNotifications((prev) => {
-        // Avoid duplicates
         if (prev.some((n) => n.id === notif.id)) return prev;
         return [{ ...notif, read: false }, ...prev];
       });
@@ -41,7 +26,6 @@ export default function useNotifications(selectedRole) {
 
     socket.on("notification", handleNotification);
 
-    // Join user's personal room for notifications
     if (selectedRole?.userId) {
       socket.emit("user:join", { userId: selectedRole.userId });
     }
@@ -51,6 +35,21 @@ export default function useNotifications(selectedRole) {
     };
   }, [selectedRole?.userId]);
 
+  // Load server-side read state
+  useEffect(() => {
+    let active = true;
+    async function loadReadState() {
+      try {
+        const result = await getReadAnnouncementIds(selectedRole);
+        if (active && result?.ids) {
+          setServerReadIds(new Set(result.ids));
+        }
+      } catch { /* ignore */ }
+    }
+    if (selectedRole?.userId) loadReadState();
+    return () => { active = false; };
+  }, [selectedRole?.value, selectedRole?.userId]);
+
   useEffect(() => {
     let active = true;
 
@@ -58,6 +57,7 @@ export default function useNotifications(selectedRole) {
       setLoading(true);
       try {
         const items = [];
+        const cutoff = Date.now() - NOTIFICATION_WINDOW_MS;
 
         // 1. Fetch courses + their announcements + attachments
         const coursesPayload = await listCourses(selectedRole);
@@ -69,39 +69,44 @@ export default function useNotifications(selectedRole) {
               listCourseAnnouncements(selectedRole, course.id).catch(() => ({ items: [] })),
               listCourseAttachments(selectedRole, course.id).catch(() => ({ items: [] }))
             ]);
-            return { course, announcements: annPayload.items || [], attachments: attPayload.items || [] };
+            return { course, announcements: annPayload.items || annPayload || [], attachments: attPayload.items || attPayload || [] };
           })
         );
 
         for (const bundle of bundles) {
-          // Announcement notifications
+          // Announcement notifications (within time window)
           for (const ann of bundle.announcements) {
+            const annTime = new Date(ann.createdAt || 0).getTime();
+            if (annTime < cutoff) continue;
+
             items.push({
               id: `ann-${ann.id}`,
+              announcementId: ann.id,
               type: "announcement",
               title: ann.title,
               subtitle: `${bundle.course.title} · ${ann.priority === "URGENT" ? "🔴 Urgent" : "Announcement"}`,
               timestamp: ann.createdAt,
               link: `/courses/${bundle.course.id}`,
+              courseId: bundle.course.id,
               read: false
             });
           }
 
-          // Recent file notifications (last 7 days only)
-          const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+          // Recent file notifications (within time window)
           for (const att of bundle.attachments) {
             const uploadTime = new Date(att.uploadedAt || att.createdAt || 0).getTime();
-            if (uploadTime > weekAgo) {
-              items.push({
-                id: `file-${att.id}`,
-                type: "file",
-                title: att.title || att.fileName || "New file",
-                subtitle: `${bundle.course.title} · File uploaded`,
-                timestamp: att.uploadedAt || att.createdAt,
-                link: `/courses/${bundle.course.id}`,
-                read: false
-              });
-            }
+            if (uploadTime < cutoff) continue;
+
+            items.push({
+              id: `file-${att.id}`,
+              type: "file",
+              title: att.title || att.fileName || "New file",
+              subtitle: `${bundle.course.title} · File uploaded`,
+              timestamp: att.uploadedAt || att.createdAt,
+              link: `/courses/${bundle.course.id}`,
+              courseId: bundle.course.id,
+              read: false
+            });
           }
         }
 
@@ -128,7 +133,6 @@ export default function useNotifications(selectedRole) {
         if (!active) return;
         setNotifications(items);
       } catch {
-        // If full load fails, just leave empty
         if (active) setNotifications([]);
       } finally {
         if (active) setLoading(false);
@@ -139,37 +143,71 @@ export default function useNotifications(selectedRole) {
     return () => { active = false; };
   }, [selectedRole?.value, selectedRole?.userId]);
 
-  // Apply seen state
+  // Apply server read state — items whose announcement_id is in the read set are marked read
   const enriched = useMemo(() => {
     return notifications.map((n) => ({
       ...n,
-      read: seen.has(n.id)
+      read: n.announcementId ? serverReadIds.has(n.announcementId) : n.read
     }));
-  }, [notifications, seen]);
+  }, [notifications, serverReadIds]);
 
   const unreadCount = useMemo(() => enriched.filter((n) => !n.read).length, [enriched]);
 
-  function markAllRead() {
-    const next = new Set(seen);
-    for (const n of notifications) {
-      next.add(n.id);
-    }
-    setSeen(next);
-    saveSeen(next);
-  }
+  const markAllRead = useCallback(async () => {
+    // Get all unread announcement IDs and mark them on the server
+    const announcementIds = notifications
+      .filter((n) => n.announcementId && !serverReadIds.has(n.announcementId))
+      .map((n) => n.announcementId);
 
-  function dismiss(id) {
-    const next = new Set(seen);
-    next.add(id);
-    setSeen(next);
-    saveSeen(next);
-  }
+    if (announcementIds.length > 0) {
+      try {
+        await apiMarkRead(selectedRole, announcementIds);
+      } catch { /* ignore */ }
+    }
+
+    // Optimistically mark all as read locally
+    setServerReadIds((prev) => {
+      const next = new Set(prev);
+      for (const id of announcementIds) next.add(id);
+      return next;
+    });
+  }, [notifications, serverReadIds, selectedRole]);
+
+  const dismiss = useCallback(async (notificationId) => {
+    // Find the announcement ID from the notification
+    const notif = notifications.find((n) => n.id === notificationId);
+    if (notif?.announcementId) {
+      setServerReadIds((prev) => new Set([...prev, notif.announcementId]));
+      try {
+        await apiMarkRead(selectedRole, [notif.announcementId]);
+      } catch { /* ignore */ }
+    }
+  }, [notifications, selectedRole]);
+
+  // Dismiss all notifications for a specific course (server-persisted)
+  const dismissByCourse = useCallback(async (courseId) => {
+    try {
+      await apiMarkCourseRead(selectedRole, courseId);
+    } catch { /* ignore */ }
+
+    // Optimistically mark all course announcements as read
+    setServerReadIds((prev) => {
+      const next = new Set(prev);
+      for (const n of notifications) {
+        if (n.courseId === courseId && n.announcementId) {
+          next.add(n.announcementId);
+        }
+      }
+      return next;
+    });
+  }, [notifications, selectedRole]);
 
   return {
     notifications: enriched,
     unreadCount,
     loading,
     markAllRead,
-    dismiss
+    dismiss,
+    dismissByCourse
   };
 }

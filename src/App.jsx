@@ -5,12 +5,13 @@ import Sidebar from "./components/Sidebar";
 import TopNavbar from "./components/TopNavbar";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
-import useNotifications from "./hooks/useNotifications";
+import { NotificationProvider, useNotificationContext } from "./context/NotificationContext";
+
 import LoginPage from "./app/login/LoginPage";
 import DashboardPage from "./app/dashboard/DashboardPage";
 import ChatPage from "./app/chat/ChatPage";
 import GroupsPage from "./app/groups/GroupsPage";
-import MyWorkApp from "./MyWorkApp";
+
 import CoursesPage from "./CoursesPage";
 import CourseDetails from "./CourseDetails";
 import AdminPage from "./app/admin/AdminPage";
@@ -45,8 +46,7 @@ function AppRoutes() {
 }
 
 function AuthenticatedShell() {
-  const { selectedRole } = useAuth();
-  const { notifications, unreadCount, markAllRead, dismiss } = useNotifications(selectedRole);
+  const { notifications, unreadCount, markAllRead, dismiss } = useNotificationContext();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
@@ -78,14 +78,21 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter>
-        <Routes>
-          <Route path="/my-work/*" element={<MyWorkApp />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="*" element={<AuthenticatedShell />} />
-        </Routes>
-      </BrowserRouter>
+          <Routes>
+
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route
+              path="*"
+              element={
+                <NotificationProvider>
+                  <AuthenticatedShell />
+                </NotificationProvider>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
   );
-}
+}

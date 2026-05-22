@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useNotificationContext } from "../context/NotificationContext";
 import { listCourses } from "../services/course.service";
 import NavAvatar from "./NavAvatar";
 
@@ -52,6 +53,11 @@ export default function Sidebar({ isOpen, onClose }) {
   const isAdmin = user?.role === "ADMIN";
   const links = getLinks(isAdmin);
   const isStudentSidebar = !isAdmin;
+
+  // Access seen-courses from notification context
+  // Sidebar is always rendered inside NotificationProvider (AuthenticatedShell)
+  const notifCtx = useNotificationContext();
+  const isCourseUnseen = notifCtx?.isCourseUnseen ?? (() => true);
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 1100 : false
@@ -227,7 +233,7 @@ export default function Sidebar({ isOpen, onClose }) {
                       title={course.title}
                     >
                       <span className="truncate">{course.title}</span>
-                      {(Number(course.announcementCount) || 0) > 0 && (
+                      {(Number(course.announcementCount) || 0) > 0 && isCourseUnseen(course.id) && (
                         <span className="ml-auto bg-red-500 text-white text-[0.7rem] rounded-full px-1.5 py-0.5 font-bold flex-shrink-0">
                           {course.announcementCount} new
                         </span>

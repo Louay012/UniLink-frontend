@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ChatBox from "../../components/ChatBox";
 import { Paperclip, Pencil, Send, X, Trash2, MessageCircle, Users, FileText, ArrowLeft, PanelRightClose, PanelRight, Search } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import useMessaging from "../../hooks/useMessaging";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../services/api";
@@ -93,6 +94,7 @@ export default function ChatPage() {
   const { selectedRole, token } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (!token) {
@@ -286,7 +288,7 @@ export default function ChatPage() {
       await sendCurrentMessage();
       setError("");
     } catch (e) {
-      setError(e.message || "Could not send message.");
+      toast.error(e.message || "Could not send message.", "Chat");
     }
   }
 
@@ -296,7 +298,7 @@ export default function ChatPage() {
       await saveEditedMessage();
       setError("");
     } catch (e) {
-      setError(e.message || "Could not edit message.");
+      toast.error(e.message || "Could not edit message.", "Chat");
     }
   }
 
@@ -311,7 +313,7 @@ export default function ChatPage() {
       await removeMessage(messageToDelete);
       setError("");
     } catch (e) {
-      setError(e.message || "Could not delete message.");
+      toast.error(e.message || "Could not delete message.", "Chat");
     } finally {
       setDeleteConfirmOpen(false);
       setMessageToDelete(null);
@@ -332,7 +334,7 @@ export default function ChatPage() {
       await removeChat();
       setError("");
     } catch (e) {
-      setError(e.message || "Could not delete chat.");
+      toast.error(e.message || "Could not delete chat.", "Chat");
     } finally {
       setDeleteChatConfirmOpen(false);
     }

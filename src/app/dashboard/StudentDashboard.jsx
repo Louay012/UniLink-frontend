@@ -251,7 +251,10 @@ export default function StudentDashboard() {
       </section>
 
       {/* ── 2. Stats Row ── */}
-      <section className="grid grid-cols-3 gap-3 sm:gap-4" aria-label="Overview statistics">
+      <section
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        aria-label="Overview statistics"
+      >
         {stats.map((s) => (
           <StatCard key={s.label} {...s} />
         ))}
@@ -316,7 +319,7 @@ export default function StudentDashboard() {
             <h2 className="font-heading text-base font-extrabold text-slate-900">Quick Actions</h2>
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {quickActions.map((a) => (
             <QuickAction key={a.label} {...a} navigate={navigate} />
           ))}
