@@ -10,14 +10,10 @@ import {
   listCourseAnnouncements,
   listCourseAttachments,
   createCourseAnnouncement,
-  createCourseAnnouncementWithFiles,
-  listCourseChats,
-  listChatMessages,
-  sendChatMessage
+  createCourseAnnouncementWithFiles
 } from './services/course.service';
 import AnnouncementCard from './components/AnnouncementCard';
 import AttachmentPreview from './components/AttachmentPreview';
-import ChatBox from './components/ChatBox';
 
 function pickColor(seed) {
   const palette = ['#0e6ba8', '#a23b72', '#f18f01', '#06a77d', '#d62828', '#9d4edd'];
@@ -37,7 +33,7 @@ function mapAnnouncement(announcement, teacherName) {
     timestamp: announcement.createdAt,
     author: announcement.authorName || teacherName || 'Teacher',
     authorId: announcement.authorId || announcement.createdBy,
-    visualType: announcement.priority === 'URGENT' ? 'URGENT' : 'NORMAL',
+    visualType: 'NORMAL',
     attachments: announcement.attachments || []
   };
 }
@@ -53,17 +49,11 @@ export default function CourseDetails({ basePath = '' }) {
   const [course, setCourse] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [attachments, setAttachments] = useState([]);
-  const [courseChats, setCourseChats] = useState([]);
-  const [selectedChatId, setSelectedChatId] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [messageDraft, setMessageDraft] = useState('');
   const [currentUserId, setCurrentUserId] = useState(selectedRole?.userId || null);
-  const [chatLoading, setChatLoading] = useState(false);
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementForm, setAnnouncementForm] = useState({
     title: '',
-    body: '',
-    priority: 'NORMAL'
+    body: ''
   });
   const [announcementFiles, setAnnouncementFiles] = useState([]);
   const [postingAnnouncement, setPostingAnnouncement] = useState(false);
@@ -114,32 +104,9 @@ export default function CourseDetails({ basePath = '' }) {
         };
       });
 
-      let chatsItems = [];
-      try {
-        const chatsPayload = await listCourseChats(selectedRole, id);
-        if (chatsPayload.actorUserId) {
-          setCurrentUserId(chatsPayload.actorUserId);
-        }
-        chatsItems = (chatsPayload.items || []).map((chat) => ({
-          ...chat,
-          chatType: String(chat.chat_type || chat.chatType || '').toUpperCase(),
-          title: chat.title || chat.name || 'Course Chat',
-          messageCount: Number(chat.messageCount ?? chat.message_count ?? 0)
-        }));
-      } catch (chatLoadError) {
-        toast.error(chatLoadError.message || 'Could not load messaging for this course.', 'Chat');
-      }
-
       setCourse(normalizedCourse);
       setAnnouncements(mappedAnnouncements);
       setAttachments(normalizedAttachments);
-      setCourseChats(chatsItems);
-      setSelectedChatId((prev) => {
-        if (prev && chatsItems.some((chat) => chat.id === prev)) {
-          return prev;
-        }
-        return chatsItems[0]?.id || null;
-      });
 
       // Auto-dismiss all notifications for this course
       dismissByCourseId(id);
@@ -154,57 +121,6 @@ export default function CourseDetails({ basePath = '' }) {
     loadCourseData();
   }, [loadCourseData]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadChatMessages() {
-      if (!selectedChatId) {
-        setChatMessages([]);
-        return;
-      }
-
-      setChatLoading(true);
-      try {
-        const payload = await listChatMessages(selectedRole, selectedChatId);
-        if (!active) return;
-        if (payload.actorUserId) {
-          setCurrentUserId(payload.actorUserId);
-        }
-        setChatMessages(payload.items || []);
-      } catch (chatMessageError) {
-        if (active) toast.error(chatMessageError.message || 'Failed to load chat messages.', 'Chat');
-      } finally {
-        if (active) {
-          setChatLoading(false);
-        }
-      }
-    }
-
-    loadChatMessages();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedChatId, selectedRole]);
-
-  async function handleSendMessage(event) {
-    event.preventDefault();
-    const body = messageDraft.trim();
-    if (!selectedChatId || !body) return;
-
-    try {
-      await sendChatMessage(selectedRole, selectedChatId, body);
-      setMessageDraft('');
-      const payload = await listChatMessages(selectedRole, selectedChatId);
-      if (payload.actorUserId) {
-        setCurrentUserId(payload.actorUserId);
-      }
-      setChatMessages(payload.items || []);
-    } catch (sendError) {
-      toast.error(sendError.message || 'Failed to send message.', 'Chat');
-    }
-  }
-
   async function handleSubmitAnnouncement(event) {
     event.preventDefault();
     if (!isTeacherView) return;
@@ -213,8 +129,7 @@ export default function CourseDetails({ basePath = '' }) {
     try {
       const payload = {
         title: announcementForm.title.trim(),
-        body: announcementForm.body.trim(),
-        priority: announcementForm.priority
+        body: announcementForm.body.trim()
       };
 
       // Use file upload endpoint if files are staged, otherwise plain JSON
@@ -228,8 +143,7 @@ export default function CourseDetails({ basePath = '' }) {
       toast.success('Announcement posted successfully.', 'Posted!');
       setAnnouncementForm({
         title: '',
-        body: '',
-        priority: 'NORMAL'
+        body: ''
       });
       setAnnouncementFiles([]);
       setShowAnnouncementForm(false);
@@ -256,12 +170,7 @@ export default function CourseDetails({ basePath = '' }) {
     setAnnouncementFiles([]);
     setAnnouncementForm({
       title: '',
-      body: '',
-      priority: 'NORMAL',
-      attachmentName: '',
-      attachmentUrl: '',
-      attachmentType: '',
-      attachmentSize: ''
+      body: ''
     });
   }
 
@@ -325,11 +234,6 @@ export default function CourseDetails({ basePath = '' }) {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [showAnnouncementForm, postingAnnouncement]);
-
-  const selectedChat = useMemo(
-    () => courseChats.find((chat) => chat.id === selectedChatId) || null,
-    [courseChats, selectedChatId]
-  );
 
   const attachmentsByAnnouncement = useMemo(() => {
     return attachments.reduce((acc, attachment) => {
@@ -437,11 +341,6 @@ export default function CourseDetails({ basePath = '' }) {
                 id: 'attachments',
                 label: 'Files',
                 badge: streamStats.attachments || null
-              },
-              {
-                id: 'messaging',
-                label: 'Messaging',
-                badge: null
               }
             ].map((tab) => (
               <button
@@ -492,13 +391,7 @@ export default function CourseDetails({ basePath = '' }) {
             <span className="text-base">📎</span>
             <span>{streamStats.attachments} file{streamStats.attachments !== 1 ? 's' : ''}</span>
           </div>
-          {course.isCourseChatEnabled && (
-            <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-              <span className="text-base">💬</span>
-              <span>Chat enabled</span>
-            </div>
-          )}
-        </div>
+          </div>
       </div>
 
       {/* ── Tab Content ── */}
@@ -569,47 +462,6 @@ export default function CourseDetails({ basePath = '' }) {
           </div>
         )}
 
-        {activeTab === 'messaging' && (
-          <div>
-            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-h-[420px] flex flex-col">
-              <h4 className="text-sm font-semibold text-slate-900 mb-3">
-                {selectedChat?.title || 'Course Chat'}
-              </h4>
-
-              {chatLoading ? <p className="text-sm text-slate-500">Loading messages...</p> : null}
-
-              {!chatLoading && selectedChat ? (
-                <>
-                  <ChatBox
-                    messages={chatMessages}
-                    currentUserId={currentUserId}
-                    isDirect={selectedChat.chatType === 'DIRECT'}
-                  />
-
-                  <form className="flex gap-2 mt-3" onSubmit={handleSendMessage}>
-                    <input
-                      type="text"
-                      value={messageDraft}
-                      placeholder="Type your message"
-                      onChange={(e) => setMessageDraft(e.target.value)}
-                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
-                    />
-                    <button
-                      type="submit"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all"
-                    >
-                      <Send size={14} /> Send
-                    </button>
-                  </form>
-                </>
-              ) : null}
-
-              {!chatLoading && !selectedChat ? (
-                <p className="text-sm text-slate-500">No course chat available yet.</p>
-              ) : null}
-            </section>
-          </div>
-        )}
       </div>
 
       {/* ── Announcement Composer Modal (Teacher only) ── */}
@@ -664,20 +516,6 @@ export default function CourseDetails({ basePath = '' }) {
                   required
                   className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
                 />
-              </div>
-
-              {/* Priority */}
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="ann-priority" className="text-sm font-semibold text-slate-700">Priority</label>
-                <select
-                  id="ann-priority"
-                  value={announcementForm.priority}
-                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, priority: e.target.value }))}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
-                >
-                  <option value="NORMAL">Normal</option>
-                  <option value="URGENT">🔴 Urgent</option>
-                </select>
               </div>
 
               {/* Content */}

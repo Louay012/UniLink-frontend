@@ -92,11 +92,6 @@ function CourseCard({ course, onClick }) {
           <span className="text-[0.68rem] font-bold uppercase tracking-wider text-slate-400">
             {course.code}
           </span>
-          {course.openQuestions > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-amber-500 text-white text-[0.65rem] font-bold rounded-full">
-              {course.openQuestions} ?
-            </span>
-          )}
         </div>
         <h4 className="font-heading text-sm font-extrabold text-slate-900 leading-tight">
           {course.title}
@@ -107,8 +102,8 @@ function CourseCard({ course, onClick }) {
           </p>
         )}
         <div className="flex gap-3 text-[0.72rem] text-slate-400 font-semibold mt-1">
-          <span>{course.announcements?.length ?? 0} posts</span>
-          <span>{course.attachments?.length ?? 0} files</span>
+          <span>{course.announcementCount ?? 0} posts</span>
+          <span>{course.attachmentCount ?? 0} files</span>
           <span>{course.studentCount ?? "—"} students</span>
         </div>
         <span className="inline-flex items-center gap-0.5 text-xs font-bold text-indigo-500 mt-2 transition-all group-hover:gap-1.5">
@@ -179,15 +174,13 @@ export default function TeacherDashboard() {
 
         const bundles = await Promise.all(
           items.map(async (course) => {
-            const [annP, attP, chatP] = await Promise.all([
+            const [annP, attP] = await Promise.all([
               listCourseAnnouncements(selectedRole, course.id).catch(() => ({ items: [] })),
-              listCourseAttachments(selectedRole, course.id).catch(() => ({ items: [] })),
-              listCourseChats(selectedRole, course.id).catch(() => ({ items: [] })),
+              listCourseAttachments(selectedRole, course.id).catch(() => ({ items: [] }))
             ]);
             return [course.id, {
               announcements: annP.items || [],
-              attachments: attP.items || [],
-              chats: chatP.items || [],
+              attachments: attP.items || []
             }];
           })
         );
@@ -208,11 +201,8 @@ export default function TeacherDashboard() {
   const enrichedCourses = useMemo(() => {
     return courses
       .map((c) => {
-        const b = courseBundles[c.id] || { announcements: [], attachments: [], chats: [] };
-        const openQuestions = (b.chats || []).filter(
-          (ch) => ch.lastMessage && ch.lastMessage.senderUserId !== teacherUserId
-        ).length;
-        return { ...c, ...b, openQuestions, color: courseColor(c.id) };
+        const b = courseBundles[c.id] || { announcements: [], attachments: [] };
+        return { ...c, ...b, color: courseColor(c.id) };
       })
       .sort((a, b) => {
         const aTime = new Date(a.announcements[0]?.createdAt || a.updatedAt || 0).getTime();
@@ -222,10 +212,9 @@ export default function TeacherDashboard() {
   }, [courses, courseBundles, teacherUserId]);
 
   const stats = useMemo(() => {
-    const totalAnn = enrichedCourses.reduce((s, c) => s + (c.announcements?.length || 0), 0);
-    const totalOpen = enrichedCourses.reduce((s, c) => s + c.openQuestions, 0);
-    const totalFiles = enrichedCourses.reduce((s, c) => s + (c.attachments?.length || 0), 0);
-    return { totalAnn, totalOpen, totalFiles };
+    const totalAnn = enrichedCourses.reduce((s, c) => s + (Number(c.announcementCount) || 0), 0);
+    const totalFiles = enrichedCourses.reduce((s, c) => s + (Number(c.attachmentCount) || 0), 0);
+    return { totalAnn, totalFiles };
   }, [enrichedCourses]);
 
   const recentAnnouncements = useMemo(() => {
@@ -246,11 +235,8 @@ export default function TeacherDashboard() {
     });
     if (stale) items.push({ icon: Bell, title: "Course needs update", text: `${stale.title} has no recent announcement.` });
 
-    const noMat = enrichedCourses.find((c) => (c.attachments || []).length === 0);
+    const noMat = enrichedCourses.find((c) => (Number(c.attachmentCount) || 0) === 0);
     if (noMat) items.push({ icon: FileText, title: "Missing materials", text: `${noMat.title} has no attached files.` });
-
-    const urgent = recentAnnouncements.find((a) => String(a.priority).toUpperCase() === "URGENT");
-    if (urgent) items.push({ icon: AlertCircle, title: "Urgent announcement", text: `${urgent.courseTitle}: ${urgent.title}` });
 
     return items.slice(0, 3);
   }, [enrichedCourses, recentAnnouncements]);
@@ -283,11 +269,10 @@ export default function TeacherDashboard() {
       </section>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard icon={BookOpen} label="Courses" value={enrichedCourses.length} color="#6366f1" loading={loading} />
         <StatCard icon={Bell} label="Announcements" value={stats.totalAnn} color="#f59e0b" loading={loading} />
         <StatCard icon={FileText} label="Materials" value={stats.totalFiles} color="#10b981" loading={loading} />
-        <StatCard icon={MessageCircle} label="Open Questions" value={stats.totalOpen} color="#ef4444" loading={loading} />
       </div>
 
       {/* ── Two-column layout ── */}
@@ -308,17 +293,10 @@ export default function TeacherDashboard() {
                   className="flex items-start gap-4 bg-white border border-slate-200 rounded-xl p-4 text-left hover:border-indigo-200 hover:shadow-md transition-all group cursor-pointer"
                   onClick={() => navigate(`/courses/${a.courseId}`)}
                 >
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    String(a.priority).toUpperCase() === "URGENT" ? "bg-red-500" : "bg-indigo-400"
-                  }`} />
+                  <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-indigo-400" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <h4 className="text-sm font-bold text-slate-900 truncate">{a.title}</h4>
-                      {String(a.priority).toUpperCase() === "URGENT" && (
-                        <span className="text-[10px] font-bold bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">
-                          🔴 Urgent
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-slate-500 line-clamp-1">{a.body}</p>
                     <p className="text-[11px] text-slate-400 mt-1">

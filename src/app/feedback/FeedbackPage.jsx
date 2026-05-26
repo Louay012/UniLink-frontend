@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckCircle2, Send, ChevronDown } from "lucide-react";
+import { Send, ChevronDown } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { listContacts, startDirectChat } from "../../services/chat.service";
+import { submitFeedback } from "../../services/chat.service";
 
 const CATEGORY_OPTIONS = [
   { value: "BUG", label: "Bug report" },
@@ -13,81 +13,34 @@ const CATEGORY_OPTIONS = [
   { value: "OTHER", label: "Other" }
 ];
 
-function preferredRecipient(contacts) {
-  if (!contacts.length) return "";
-  const coordinator = contacts.find((c) => String(c.role || "").toUpperCase() === "COORDINATOR");
-  if (coordinator) return coordinator.id;
-  const teacher = contacts.find((c) => String(c.role || "").toUpperCase() === "TEACHER");
-  if (teacher) return teacher.id;
-  return contacts[0].id;
-}
-
 export default function FeedbackPage() {
   const { token, selectedRole } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [contacts, setContacts] = useState([]);
-  const [recipientId, setRecipientId] = useState("");
   const [category, setCategory] = useState("BUG");
   const [subject, setSubject] = useState("");
   const [details, setDetails] = useState("");
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!token) navigate("/login", { replace: true });
   }, [token, navigate]);
 
-  useEffect(() => {
-    let active = true;
-    async function loadContacts() {
-      setLoading(true);
-      try {
-        const payload = await listContacts(selectedRole);
-        if (!active) return;
-        const items = payload.items || [];
-        setContacts(items);
-        setRecipientId(preferredRecipient(items));
-      } catch (err) {
-        if (active) toast.error(err.message || "Could not load messaging contacts.", "Feedback");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    loadContacts();
-    return () => { active = false; };
-  }, [selectedRole]);
-
-  const recipientOptions = useMemo(() =>
-    contacts.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
-    [contacts]
-  );
-
   async function handleSubmit(event) {
     event.preventDefault();
     const cleanSubject = subject.trim();
     const cleanDetails = details.trim();
 
-    if (!recipientId || !cleanSubject || !cleanDetails) {
-      toast.error("Recipient, subject, and details are required.", "Validation");
+    if (!cleanSubject || !cleanDetails) {
+      toast.error("Subject and details are required.", "Validation");
       return;
     }
 
     setSubmitting(true);
     try {
-      const recipient = recipientOptions.find((c) => c.id === recipientId);
-      const message = [
-        `[Feedback ${category}] ${cleanSubject}`,
-        "",
-        cleanDetails,
-        "",
-        `Sender role: ${selectedRole.value}`,
-        `Sent at: ${new Date().toISOString()}`
-      ].join("\n");
-
-      await startDirectChat(selectedRole, { targetUserId: recipientId, initialMessage: message });
-      toast.success(`Feedback sent to ${recipient?.name || "recipient"}.`, "Sent!");
+      await submitFeedback(selectedRole, { category, subject: cleanSubject, details: cleanDetails });
+      toast.success(`Feedback sent successfully.`, "Sent!");
       setSubject("");
       setDetails("");
     } catch (err) {
@@ -99,7 +52,6 @@ export default function FeedbackPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-8 w-full min-w-0 max-w-2xl mx-auto">
-
       {/* Hero */}
       <section
         className="relative rounded-2xl p-6 sm:p-8 overflow-hidden"
@@ -111,36 +63,13 @@ export default function FeedbackPage() {
         <div className="relative z-10">
           <p className="text-[0.72rem] font-bold uppercase tracking-widest text-white/50 mb-1">UniLink</p>
           <h1 className="font-heading text-2xl md:text-3xl font-extrabold text-white mb-1">Report Issue / Feedback</h1>
-          <p className="text-sm text-white/60">Submit feedback through a direct message to your coordinator or teacher.</p>
+          <p className="text-sm text-white/60">Submit feedback directly to the administration.</p>
         </div>
       </section>
 
       {/* Form Card */}
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-          {/* Recipient */}
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="fb-recipient" className="text-sm font-semibold text-slate-700">Recipient</label>
-            <div className="relative">
-              <select
-                id="fb-recipient"
-                value={recipientId}
-                onChange={(e) => setRecipientId(e.target.value)}
-                disabled={loading || submitting || !recipientOptions.length}
-                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
-              >
-                {!recipientOptions.length
-                  ? <option value="">No allowed recipients</option>
-                  : recipientOptions.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.role})</option>
-                    ))
-                }
-              </select>
-              <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            </div>
-          </div>
-
           {/* Category */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="fb-category" className="text-sm font-semibold text-slate-700">Category</label>
@@ -201,7 +130,7 @@ export default function FeedbackPage() {
             </button>
             <button
               type="submit"
-              disabled={submitting || loading || !recipientOptions.length}
+              disabled={submitting}
               className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={14} />

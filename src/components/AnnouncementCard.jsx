@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Paperclip, Download } from "lucide-react";
+import { Paperclip, Download, ExternalLink } from "lucide-react";
 
 const API_BASE = "http://localhost:4000/api";
 
@@ -40,6 +40,14 @@ function avatarColor(name = "") {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+const PREVIEWABLE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'txt', 'mp4', 'webm'];
+
+function isPreviewable(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return PREVIEWABLE_EXTS.includes(ext);
+}
+
 function formatFileSize(bytes) {
   const size = Number(bytes);
   if (!Number.isFinite(size) || size <= 0) return '';
@@ -73,38 +81,6 @@ function AuthorAvatar({ authorId, author, color }) {
     >
       {initials}
     </div>
-  );
-}
-
-/* ─── Badge ─────────────────────────────────────────────── */
-
-function PriorityBadge({ type }) {
-  if (!type || type === "NORMAL") return null;
-
-  const config = {
-    URGENT: {
-      label: "Urgent",
-      icon: "🔴",
-      className: "bg-red-50 text-red-700 border border-red-200",
-    },
-    PINNED: {
-      label: "Pinned",
-      icon: "📌",
-      className: "bg-amber-50 text-amber-700 border border-amber-200",
-    },
-  };
-
-  const { label, icon, className } = config[type] || {
-    label: type,
-    icon: "📢",
-    className: "bg-slate-100 text-slate-600 border border-slate-200",
-  };
-
-  return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${className}`}>
-      <span>{icon}</span>
-      {label}
-    </span>
   );
 }
 
@@ -153,7 +129,6 @@ export default function AnnouncementCard({
 
         {/* Badges */}
         <div className="flex items-center gap-2 shrink-0 pt-0.5">
-          <PriorityBadge type={announcement.visualType} />
           {showCourse && announcement.courseTitle ? (
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 font-medium">
               {announcement.courseTitle}
@@ -186,23 +161,40 @@ export default function AnnouncementCard({
             </div>
             <div className="grid gap-2">
               {announcement.attachments.map((att) => (
-                <a
+                <div
                   key={att.id}
-                  href={`${API_BASE}/courses/announcements/attachments/${att.id}/download`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 hover:bg-slate-100 hover:border-slate-300 transition-colors"
+                  className="group flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 hover:bg-slate-100 hover:border-slate-300 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+                    <p className="text-sm font-medium text-slate-800 truncate transition-colors">
                       {att.title || att.fileName || 'Attachment'}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {att.type || 'File'}{att.size ? ` · ${formatFileSize(att.size)}` : ''}
                     </p>
                   </div>
-                  <Download size={14} className="text-slate-400 group-hover:text-indigo-500 shrink-0" />
-                </a>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isPreviewable(att.title || att.fileName) && (
+                      <a
+                        href={`${API_BASE}/courses/announcements/attachments/${att.id}/download?action=view`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open in new tab"
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                      >
+                        <ExternalLink size={16} />
+                      </a>
+                    )}
+                    <a
+                      href={`${API_BASE}/courses/announcements/attachments/${att.id}/download?action=download`}
+                      download
+                      title="Download file"
+                      className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                    >
+                      <Download size={16} />
+                    </a>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

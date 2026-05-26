@@ -135,6 +135,16 @@ async function deleteChat(selectedRole, chatId) {
   });
 }
 
+async function submitFeedback(selectedRole, payload) {
+  return apiRequest("/feedback", selectedRole, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
 export {
   listChats,
   listContacts,
@@ -147,5 +157,6 @@ export {
   deleteMessage,
   toggleMessageReaction,
   markChatRead,
-  deleteChat
+  deleteChat,
+  submitFeedback
 };

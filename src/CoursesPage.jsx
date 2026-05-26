@@ -38,9 +38,9 @@ const FILTER_OPTIONS = [
 
 /* ─── CourseCard (identical to Dashboard) ──────────────────── */
 
-function CourseCard({ course, onClick, isUnseen = true }) {
+function CourseCard({ course, onClick, unreadCount = 0 }) {
   const color = courseColor(course.id);
-  const hasUnread = (course.announcementCount ?? 0) > 0 && isUnseen;
+  const hasUnread = unreadCount > 0;
 
   return (
     <button
@@ -56,7 +56,7 @@ function CourseCard({ course, onClick, isUnseen = true }) {
           </span>
           {hasUnread && (
             <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[0.65rem] font-bold rounded-full animate-pulse-badge">
-              {course.announcementCount}
+              {unreadCount}
             </span>
           )}
         </div>
@@ -106,7 +106,7 @@ export default function CoursesPage({ basePath = '' }) {
   const { selectedRole } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const { isCourseUnseen } = useNotificationContext();
+  const { notifications } = useNotificationContext();
 
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -231,7 +231,7 @@ export default function CoursesPage({ basePath = '' }) {
             <CourseCard
               key={course.id}
               course={course}
-              isUnseen={isCourseUnseen(course.id)}
+              unreadCount={notifications.filter(n => n.courseId === course.id && !n.read).length}
               onClick={() => navigate(`${basePath}/courses/${course.id}`)}
             />
           ))}

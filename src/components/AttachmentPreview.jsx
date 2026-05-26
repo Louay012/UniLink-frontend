@@ -1,6 +1,14 @@
-import { Download } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 
 const API_BASE = "http://localhost:4000/api";
+
+const PREVIEWABLE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'txt', 'mp4', 'webm'];
+
+function isPreviewable(filename) {
+  if (!filename) return false;
+  const ext = filename.split('.').pop().toLowerCase();
+  return PREVIEWABLE_EXTS.includes(ext);
+}
 
 function getAttachmentKind(att) {
   const mime = String(att?.type || att?.mimeType || '').toLowerCase();
@@ -46,10 +54,7 @@ export default function AttachmentPreview({ attachment }) {
   const colors = colorByKind[kind] || colorByKind.file;
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
+    <div
       className={`group rounded-xl border ${colors.border} ${colors.bg} overflow-hidden flex items-center gap-3 min-h-[64px] hover:shadow-md transition-all p-3`}
     >
       {/* Kind icon */}
@@ -59,7 +64,7 @@ export default function AttachmentPreview({ attachment }) {
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+        <p className="text-sm font-medium text-slate-800 truncate transition-colors">
           {attachment.name || attachment.title || 'Attachment'}
         </p>
         <p className="text-xs text-slate-400 mt-0.5">
@@ -67,8 +72,28 @@ export default function AttachmentPreview({ attachment }) {
         </p>
       </div>
 
-      {/* Download icon */}
-      <Download size={14} className="text-slate-400 group-hover:text-indigo-500 shrink-0" />
-    </a>
+      {/* Actions */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {isPreviewable(attachment.name || attachment.title || attachment.fileName) && (
+          <a
+            href={`${href}?action=view`}
+            target="_blank"
+            rel="noreferrer"
+            title="Open in new tab"
+            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+          >
+            <ExternalLink size={16} />
+          </a>
+        )}
+        <a
+          href={`${href}?action=download`}
+          download
+          title="Download file"
+          className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+        >
+          <Download size={16} />
+        </a>
+      </div>
+    </div>
   );
 }

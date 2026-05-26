@@ -99,6 +99,7 @@ export default function useNotifications(selectedRole) {
 
             items.push({
               id: `file-${att.id}`,
+              announcementId: att.announcementId,
               type: "file",
               title: att.title || att.fileName || "New file",
               subtitle: `${bundle.course.title} · File uploaded`,

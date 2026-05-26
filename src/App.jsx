@@ -10,8 +10,6 @@ import { NotificationProvider, useNotificationContext } from "./context/Notifica
 import LoginPage from "./app/login/LoginPage";
 import DashboardPage from "./app/dashboard/DashboardPage";
 import ChatPage from "./app/chat/ChatPage";
-import GroupsPage from "./app/groups/GroupsPage";
-
 import CoursesPage from "./CoursesPage";
 import CourseDetails from "./CourseDetails";
 import AdminPage from "./app/admin/AdminPage";
@@ -44,7 +42,6 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to={target} replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-      <Route path="/groups" element={<ProtectedRoute><GroupsPage /></ProtectedRoute>} />
       <Route path="/courses" element={<ProtectedRoute><CoursesPage /></ProtectedRoute>} />
       <Route path="/courses/:id" element={<ProtectedRoute><CourseDetails /></ProtectedRoute>} />
       <Route path="/feedback" element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />

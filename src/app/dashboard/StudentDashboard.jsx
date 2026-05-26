@@ -19,6 +19,7 @@ import {
   listCourseAnnouncements,
   listCourseAttachments
 } from "../../services/course.service";
+import { useNotificationContext } from "../../context/NotificationContext";
 
 /* ─── helpers ──────────────────────────────────────────── */
 
@@ -93,8 +94,8 @@ function CourseCard({ course, onClick }) {
           </p>
         )}
         <div className="flex gap-3 text-[0.72rem] text-slate-400 font-semibold mt-1">
-          <span>{course.attachments?.length ?? 0} files</span>
-          <span>{course.announcements?.length ?? 0} announcements</span>
+          <span>{course.attachmentCount ?? 0} files</span>
+          <span>{course.announcementCount ?? 0} announcements</span>
         </div>
         <span className="inline-flex items-center gap-0.5 text-xs font-bold text-indigo-500 mt-2 transition-all group-hover:gap-1.5">
           Open <ChevronRight size={13} />
@@ -126,6 +127,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   const toast = useToast();
+  const { notifications } = useNotificationContext();
   const [courses, setCourses] = useState([]);
   const [courseBundles, setCourseBundles] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -181,28 +183,29 @@ export default function StudentDashboard() {
   const enrichedCourses = useMemo(() =>
     courses.map((c) => {
       const bundle = courseBundles[c.id] || { announcements: [], attachments: [] };
+      const unreadCount = notifications.filter(n => n.courseId === c.id && !n.read).length;
       return {
         ...c,
         announcements: bundle.announcements,
         attachments: bundle.attachments,
-        unreadCount: bundle.announcements.length
+        unreadCount
       };
     }).sort((a, b) => {
       const aT = new Date(a.announcements[0]?.createdAt || a.updatedAt || 0).getTime();
       const bT = new Date(b.announcements[0]?.createdAt || b.updatedAt || 0).getTime();
       return bT - aT;
     }),
-  [courses, courseBundles]);
+  [courses, courseBundles, notifications]);
 
   const topCourses = enrichedCourses.slice(0, 4);
 
   const totalMaterials = useMemo(
-    () => enrichedCourses.reduce((sum, c) => sum + c.attachments.length, 0),
+    () => enrichedCourses.reduce((sum, c) => sum + (Number(c.attachmentCount) || 0), 0),
     [enrichedCourses]
   );
 
-  const totalUnread = useMemo(
-    () => enrichedCourses.reduce((sum, c) => sum + c.announcements.length, 0),
+  const totalAnnouncements = useMemo(
+    () => enrichedCourses.reduce((sum, c) => sum + (Number(c.announcementCount) || 0), 0),
     [enrichedCourses]
   );
 
@@ -215,7 +218,7 @@ export default function StudentDashboard() {
 
   const stats = [
     { icon: BookOpen, value: isLoading ? "—" : enrichedCourses.length, label: "Enrolled Courses", color: "#6366f1" },
-    { icon: Bell, value: isLoading ? "—" : totalUnread, label: "Announcements", color: "#f59e0b" },
+    { icon: Bell, value: isLoading ? "—" : totalAnnouncements, label: "Announcements", color: "#f59e0b" },
     { icon: FileText, value: isLoading ? "—" : totalMaterials, label: "Course Materials", color: "#10b981" }
   ];
 

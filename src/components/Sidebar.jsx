@@ -21,8 +21,7 @@ import {
 const getLinks = (isAdmin) => {
   const baseLinks = [
     { to: "/dashboard", label: "Dashboard" },
-    { to: "/chat", label: "Chat" },
-    { to: "/groups", label: "Groups" }
+    { to: "/chat", label: "Chat" }
   ];
   if (isAdmin) {
     return [
@@ -259,12 +258,6 @@ export default function Sidebar({ isOpen, onClose }) {
                 className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
                 <MessageCircle size={18} className="flex-shrink-0" />
                 {(!collapsed || isMobile) && <span>Chat</span>}
-              </NavLink>
-
-              <NavLink to="/groups" title={collapsed && !isMobile ? "Groups" : undefined}
-                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
-                <Users size={18} className="flex-shrink-0" />
-                {(!collapsed || isMobile) && <span>Groups</span>}
               </NavLink>
 
               <NavLink to="/feedback" title={collapsed && !isMobile ? "Feedback" : undefined}
