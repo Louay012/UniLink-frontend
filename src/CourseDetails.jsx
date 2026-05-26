@@ -15,6 +15,7 @@ import {
   listChatMessages,
   sendChatMessage
 } from './services/course.service';
+import useMessaging from './hooks/useMessaging';
 import AnnouncementCard from './components/AnnouncementCard';
 import AttachmentPreview from './components/AttachmentPreview';
 import ChatBox from './components/ChatBox';
@@ -53,12 +54,9 @@ export default function CourseDetails({ basePath = '' }) {
   const [course, setCourse] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [attachments, setAttachments] = useState([]);
-  const [courseChats, setCourseChats] = useState([]);
-  const [selectedChatId, setSelectedChatId] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [messageDraft, setMessageDraft] = useState('');
+  const { filteredChats: courseChats, selectedChat, selectedChatId, setSelectedChatId, messages: chatMessages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, messageDraft, handleMessageDraftChange, sendCurrentMessage, isSending } = useMessaging(selectedRole, id);
+
   const [currentUserId, setCurrentUserId] = useState(selectedRole?.userId || null);
-  const [chatLoading, setChatLoading] = useState(false);
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementForm, setAnnouncementForm] = useState({
     title: '',
@@ -114,32 +112,9 @@ export default function CourseDetails({ basePath = '' }) {
         };
       });
 
-      let chatsItems = [];
-      try {
-        const chatsPayload = await listCourseChats(selectedRole, id);
-        if (chatsPayload.actorUserId) {
-          setCurrentUserId(chatsPayload.actorUserId);
-        }
-        chatsItems = (chatsPayload.items || []).map((chat) => ({
-          ...chat,
-          chatType: String(chat.chat_type || chat.chatType || '').toUpperCase(),
-          title: chat.title || chat.name || 'Course Chat',
-          messageCount: Number(chat.messageCount ?? chat.message_count ?? 0)
-        }));
-      } catch (chatLoadError) {
-        toast.error(chatLoadError.message || 'Could not load messaging for this course.', 'Chat');
-      }
-
       setCourse(normalizedCourse);
       setAnnouncements(mappedAnnouncements);
       setAttachments(normalizedAttachments);
-      setCourseChats(chatsItems);
-      setSelectedChatId((prev) => {
-        if (prev && chatsItems.some((chat) => chat.id === prev)) {
-          return prev;
-        }
-        return chatsItems[0]?.id || null;
-      });
 
       // Auto-dismiss all notifications for this course
       dismissByCourseId(id);
@@ -154,55 +129,9 @@ export default function CourseDetails({ basePath = '' }) {
     loadCourseData();
   }, [loadCourseData]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadChatMessages() {
-      if (!selectedChatId) {
-        setChatMessages([]);
-        return;
-      }
-
-      setChatLoading(true);
-      try {
-        const payload = await listChatMessages(selectedRole, selectedChatId);
-        if (!active) return;
-        if (payload.actorUserId) {
-          setCurrentUserId(payload.actorUserId);
-        }
-        setChatMessages(payload.items || []);
-      } catch (chatMessageError) {
-        if (active) toast.error(chatMessageError.message || 'Failed to load chat messages.', 'Chat');
-      } finally {
-        if (active) {
-          setChatLoading(false);
-        }
-      }
-    }
-
-    loadChatMessages();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedChatId, selectedRole]);
-
-  async function handleSendMessage(event) {
+  function handleSendMessage(event) {
     event.preventDefault();
-    const body = messageDraft.trim();
-    if (!selectedChatId || !body) return;
-
-    try {
-      await sendChatMessage(selectedRole, selectedChatId, body);
-      setMessageDraft('');
-      const payload = await listChatMessages(selectedRole, selectedChatId);
-      if (payload.actorUserId) {
-        setCurrentUserId(payload.actorUserId);
-      }
-      setChatMessages(payload.items || []);
-    } catch (sendError) {
-      toast.error(sendError.message || 'Failed to send message.', 'Chat');
-    }
+    sendCurrentMessage();
   }
 
   async function handleSubmitAnnouncement(event) {
@@ -326,10 +255,6 @@ export default function CourseDetails({ basePath = '' }) {
     };
   }, [showAnnouncementForm, postingAnnouncement]);
 
-  const selectedChat = useMemo(
-    () => courseChats.find((chat) => chat.id === selectedChatId) || null,
-    [courseChats, selectedChatId]
-  );
 
   const attachmentsByAnnouncement = useMemo(() => {
     return attachments.reduce((acc, attachment) => {
@@ -576,14 +501,16 @@ export default function CourseDetails({ basePath = '' }) {
                 {selectedChat?.title || 'Course Chat'}
               </h4>
 
-              {chatLoading ? <p className="text-sm text-slate-500">Loading messages...</p> : null}
-
-              {!chatLoading && selectedChat ? (
+              {selectedChat ? (
                 <>
                   <ChatBox
+                    chatId={selectedChatId}
                     messages={chatMessages}
                     currentUserId={currentUserId}
                     isDirect={selectedChat.chatType === 'DIRECT'}
+                    hasOlderMessages={hasOlderMessages}
+                    isLoadingOlderMessages={isLoadingOlderMessages}
+                    onLoadOlderMessages={loadOlderMessages}
                   />
 
                   <form className="flex gap-2 mt-3" onSubmit={handleSendMessage}>
@@ -591,7 +518,7 @@ export default function CourseDetails({ basePath = '' }) {
                       type="text"
                       value={messageDraft}
                       placeholder="Type your message"
-                      onChange={(e) => setMessageDraft(e.target.value)}
+                      onChange={handleMessageDraftChange}
                       className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
                     />
                     <button
@@ -604,7 +531,7 @@ export default function CourseDetails({ basePath = '' }) {
                 </>
               ) : null}
 
-              {!chatLoading && !selectedChat ? (
+              {!selectedChat ? (
                 <p className="text-sm text-slate-500">No course chat available yet.</p>
               ) : null}
             </section>

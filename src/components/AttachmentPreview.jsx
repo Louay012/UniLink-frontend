@@ -1,6 +1,5 @@
 import { Download } from "lucide-react";
-
-const API_BASE = "http://localhost:4000/api";
+import { API_BASE } from "../services/api";
 
 function getAttachmentKind(att) {
   const mime = String(att?.type || att?.mimeType || '').toLowerCase();

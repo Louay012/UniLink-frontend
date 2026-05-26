@@ -30,7 +30,8 @@ const getLinks = (isAdmin) => {
       { to: "/admin/add-user", label: "Add User" },
       { to: "/admin/view-users", label: "View Users" },
       { to: "/admin/assign-courses", label: "Assign Courses" },
-      { to: "/admin/academic-setup", label: "Academic Setup" }
+      { to: "/admin/academic-setup", label: "Academic Setup" },
+      { to: "/feedback", label: "Bug Reports" }
     ];
   }
   return baseLinks;
@@ -267,10 +268,10 @@ export default function Sidebar({ isOpen, onClose }) {
                 {(!collapsed || isMobile) && <span>Groups</span>}
               </NavLink>
 
-              <NavLink to="/feedback" title={collapsed && !isMobile ? "Feedback" : undefined}
+              <NavLink to="/feedback" title={collapsed && !isMobile ? "Bug Report" : undefined}
                 className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
                 <AlertCircle size={18} className="flex-shrink-0" />
-                {(!collapsed || isMobile) && <span>Feedback</span>}
+                {(!collapsed || isMobile) && <span>Bug Report</span>}
               </NavLink>
 
               <NavLink to="/profile" title={collapsed && !isMobile ? "Profile" : undefined}

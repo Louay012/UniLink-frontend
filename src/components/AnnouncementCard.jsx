@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Paperclip, Download } from "lucide-react";
-
-const API_BASE = "http://localhost:4000/api";
+import { API_BASE } from "../services/api";
 
 /* ─── helpers ───────────────────────────────────────────── */
 

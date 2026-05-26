@@ -2,13 +2,14 @@ import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import ChatBox from "../../components/ChatBox";
-import { Paperclip, Pencil, Send, X, Trash2, MessageCircle, Users, FileText, ArrowLeft, PanelRightClose, PanelRight, Search } from 'lucide-react';
+import { Paperclip, Pencil, Send, X, Trash2, MessageCircle, Users, FileText, ArrowLeft, PanelRightClose, PanelRight, Search, UserRound, Check } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import useMessaging from "../../hooks/useMessaging";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE } from "../../services/api";
 import { searchUsers } from "../../services/chat.service";
+import "./ChatPage.css";
 
 const BACKEND_BASE = API_BASE.replace(/\/api$/, "");
 
@@ -144,9 +145,11 @@ export default function ChatPage() {
     sendCurrentMessage,
     createDirectChat,
     jumpToMessage,
+    toggleReaction,
     error,
     setError
   } = useMessaging(selectedRole);
+  const location = useLocation();
   const [chatView, setChatView] = useState("DIRECT");
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [newChatSearch, setNewChatSearch] = useState("");
@@ -169,7 +172,15 @@ export default function ChatPage() {
   );
   const visibleChats = chatView === "DIRECT" ? directChats : channelChats;
   const isSelectedChatDirect = selectedChat?.chatType === "DIRECT";
-  const displayedContacts = newChatSearch.trim() ? searchedUsers : contacts;
+  const displayedContacts = useMemo(
+    () => (newChatSearch.trim() ? searchedUsers : contacts)
+      .filter((contact) => String(contact.id) !== String(currentUserId)),
+    [newChatSearch, searchedUsers, contacts, currentUserId]
+  );
+  const selectedContact = useMemo(
+    () => displayedContacts.find((contact) => String(contact.id) === String(selectedContactId)) || contacts.find((contact) => String(contact.id) === String(selectedContactId)) || null,
+    [displayedContacts, contacts, selectedContactId]
+  );
   const counterpart = useMemo(() => {
     if (!selectedChat || !isSelectedChatDirect) return null;
     return (selectedChat.members || []).find((member) => String(member.id) !== String(currentUserId)) || null;
@@ -193,6 +204,23 @@ export default function ChatPage() {
   }, [typingUsers]);
 
   useEffect(() => {
+    // If navigated with ?chatId=..., open that chat automatically
+    try {
+      const params = new URLSearchParams(location.search);
+      const chatId = params.get('chatId');
+      if (chatId) {
+        setSelectedChatId(chatId);
+        // remove query param from URL without reloading
+        params.delete('chatId');
+        const base = location.pathname;
+        const qs = params.toString();
+        const newUrl = qs ? `${base}?${qs}` : base;
+        window.history.replaceState({}, '', newUrl);
+      }
+    } catch (e) {
+      // ignore
+    }
+
     if (!selectedChatId) {
       return;
     }
@@ -707,38 +735,55 @@ export default function ChatPage() {
             </div>
 
             <form className="chat-modal-form" onSubmit={handleStartDirectChat}>
-              <label htmlFor="new-chat-search">Search user</label>
-              <input
-                id="new-chat-search"
-                type="text"
-                placeholder="Type a name or role"
-                value={newChatSearch}
-                onChange={(event) => setNewChatSearch(event.target.value)}
-              />
+              <label htmlFor="new-chat-search">Find someone</label>
+              <div className="new-chat-search-field">
+                <Search size={16} />
+                <input
+                  id="new-chat-search"
+                  type="text"
+                  placeholder="Search by name, email, or role"
+                  value={newChatSearch}
+                  onChange={(event) => setNewChatSearch(event.target.value)}
+                />
+              </div>
 
-              <label htmlFor="new-chat-target">Select contact</label>
-              <select
-                id="new-chat-target"
-                value={selectedContactId}
-                onChange={(event) => setSelectedContactId(event.target.value)}
-              >
+              <div className="new-chat-directory" role="listbox" aria-label="People">
+                {displayedContacts.map((contact) => {
+                  const isSelected = String(selectedContactId) === String(contact.id);
+                  return (
+                    <button
+                      type="button"
+                      key={contact.id}
+                      className={`new-chat-contact ${isSelected ? "selected" : ""}`}
+                      onClick={() => setSelectedContactId(contact.id)}
+                      role="option"
+                      aria-selected={isSelected}
+                    >
+                      <span className="new-chat-contact-avatar">
+                        <UserRound size={17} />
+                      </span>
+                      <span className="new-chat-contact-main">
+                        <strong>{contact.name || contact.email || "Unknown user"}</strong>
+                        <small>{contact.email || contact.role || "UniLink member"}</small>
+                      </span>
+                      <span className="new-chat-contact-role">{contact.role || "Member"}</span>
+                      {isSelected ? <span className="new-chat-contact-check"><Check size={14} /></span> : null}
+                    </button>
+                  );
+                })}
+
                 {!displayedContacts.length ? (
-                  <option value="">{isSearchingUsers ? "Searching..." : "No matching contacts"}</option>
-                ) : (
-                  <option value="">-- Select a User --</option>
-                )}
-                {displayedContacts.map((contact) => (
-                  <option key={contact.id} value={contact.id}>
-                    {contact.name} ({contact.role})
-                  </option>
-                ))}
-              </select>
+                  <div className="new-chat-empty">
+                    {isSearchingUsers ? "Searching..." : "No matching people found."}
+                  </div>
+                ) : null}
+              </div>
 
               <label htmlFor="new-chat-first-message">Optional first message</label>
               <input
                 id="new-chat-first-message"
                 type="text"
-                placeholder="Say hello"
+                placeholder={selectedContact ? `Message ${selectedContact.name}` : "Say hello"}
                 value={directMessageDraft}
                 onChange={(event) => setDirectMessageDraft(event.target.value)}
               />
