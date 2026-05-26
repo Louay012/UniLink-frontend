@@ -2,11 +2,23 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from "
 
 const AuthContext = createContext(null);
 
+function readStoredUser() {
+  const saved = localStorage.getItem("unilink_user");
+  if (!saved) return null;
+
+  try {
+    return JSON.parse(saved);
+  } catch (_error) {
+    localStorage.removeItem("unilink_user");
+    localStorage.removeItem("unilink_token");
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   // When the page loads, check if a token was already saved
   const [user,  setUser]  = useState(() => {
-    const saved = localStorage.getItem("unilink_user");
-    return saved ? JSON.parse(saved) : null;
+    return readStoredUser();
   });
   const [token, setToken] = useState(() => {
     return localStorage.getItem("unilink_token") || null;

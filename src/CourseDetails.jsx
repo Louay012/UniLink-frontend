@@ -12,6 +12,7 @@ import {
   createCourseAnnouncement,
   createCourseAnnouncementWithFiles
 } from './services/course.service';
+import useMessaging from './hooks/useMessaging';
 import AnnouncementCard from './components/AnnouncementCard';
 import AttachmentPreview from './components/AttachmentPreview';
 
@@ -49,6 +50,8 @@ export default function CourseDetails({ basePath = '' }) {
   const [course, setCourse] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [attachments, setAttachments] = useState([]);
+  const { filteredChats: courseChats, selectedChat, selectedChatId, setSelectedChatId, messages: chatMessages, hasOlderMessages, isLoadingOlderMessages, loadOlderMessages, messageDraft, handleMessageDraftChange, sendCurrentMessage, isSending } = useMessaging(selectedRole, id);
+
   const [currentUserId, setCurrentUserId] = useState(selectedRole?.userId || null);
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementForm, setAnnouncementForm] = useState({
@@ -75,12 +78,12 @@ export default function CourseDetails({ basePath = '' }) {
 
       const normalizedCourse = coursePayload
         ? {
-            ...coursePayload,
-            teacher: coursePayload.teacher || { name: 'Unknown Teacher' },
-            color: coursePayload.color || pickColor(coursePayload.code || id),
-            announcementCount: Number(coursePayload.announcementCount ?? 0),
-            attachmentCount: Number(coursePayload.attachmentCount ?? 0)
-          }
+          ...coursePayload,
+          teacher: coursePayload.teacher || { name: 'Unknown Teacher' },
+          color: coursePayload.color || pickColor(coursePayload.code || id),
+          announcementCount: Number(coursePayload.announcementCount ?? 0),
+          attachmentCount: Number(coursePayload.attachmentCount ?? 0)
+        }
         : null;
 
       const normalizedAttachments = (attachmentsPayload.items || []).map((attachment) => ({
@@ -120,6 +123,11 @@ export default function CourseDetails({ basePath = '' }) {
   useEffect(() => {
     loadCourseData();
   }, [loadCourseData]);
+
+  function handleSendMessage(event) {
+    event.preventDefault();
+    sendCurrentMessage();
+  }
 
   async function handleSubmitAnnouncement(event) {
     event.preventDefault();
@@ -235,6 +243,7 @@ export default function CourseDetails({ basePath = '' }) {
     };
   }, [showAnnouncementForm, postingAnnouncement]);
 
+
   const attachmentsByAnnouncement = useMemo(() => {
     return attachments.reduce((acc, attachment) => {
       const key = String(attachment.announcementId || 'unlinked');
@@ -346,17 +355,15 @@ export default function CourseDetails({ basePath = '' }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center gap-1.5 px-4 py-3.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id
+                className={`relative flex items-center gap-1.5 px-4 py-3.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id
                     ? 'border-indigo-600 text-indigo-600'
                     : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                }`}
+                  }`}
               >
                 {tab.label}
                 {tab.badge ? (
-                  <span className={`inline-flex items-center justify-center min-w-[18px] h-4.5 px-1 text-[10px] font-bold rounded-full ${
-                    activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
-                  }`}>
+                  <span className={`inline-flex items-center justify-center min-w-[18px] h-4.5 px-1 text-[10px] font-bold rounded-full ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
                     {tab.badge}
                   </span>
                 ) : null}
@@ -391,7 +398,7 @@ export default function CourseDetails({ basePath = '' }) {
             <span className="text-base">📎</span>
             <span>{streamStats.attachments} file{streamStats.attachments !== 1 ? 's' : ''}</span>
           </div>
-          </div>
+        </div>
       </div>
 
       {/* ── Tab Content ── */}
@@ -462,6 +469,49 @@ export default function CourseDetails({ basePath = '' }) {
           </div>
         )}
 
+        {activeTab === 'messaging' && (
+          <div>
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-h-[420px] flex flex-col">
+              <h4 className="text-sm font-semibold text-slate-900 mb-3">
+                {selectedChat?.title || 'Course Chat'}
+              </h4>
+
+              {selectedChat ? (
+                <>
+                  <ChatBox
+                    chatId={selectedChatId}
+                    messages={chatMessages}
+                    currentUserId={currentUserId}
+                    isDirect={selectedChat.chatType === 'DIRECT'}
+                    hasOlderMessages={hasOlderMessages}
+                    isLoadingOlderMessages={isLoadingOlderMessages}
+                    onLoadOlderMessages={loadOlderMessages}
+                  />
+
+                  <form className="flex gap-2 mt-3" onSubmit={handleSendMessage}>
+                    <input
+                      type="text"
+                      value={messageDraft}
+                      placeholder="Type your message"
+                      onChange={handleMessageDraftChange}
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-all"
+                    >
+                      <Send size={14} /> Send
+                    </button>
+                  </form>
+                </>
+              ) : null}
+
+              {!selectedChat ? (
+                <p className="text-sm text-slate-500">No course chat available yet.</p>
+              ) : null}
+            </section>
+          </div>
+        )}
       </div>
 
       {/* ── Announcement Composer Modal (Teacher only) ── */}

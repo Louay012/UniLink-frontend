@@ -1,14 +1,5 @@
-import { Download, ExternalLink } from "lucide-react";
-
-const API_BASE = "http://localhost:4000/api";
-
-const PREVIEWABLE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'txt', 'mp4', 'webm'];
-
-function isPreviewable(filename) {
-  if (!filename) return false;
-  const ext = filename.split('.').pop().toLowerCase();
-  return PREVIEWABLE_EXTS.includes(ext);
-}
+import { Download } from "lucide-react";
+import { API_BASE } from "../services/api";
 
 function getAttachmentKind(att) {
   const mime = String(att?.type || att?.mimeType || '').toLowerCase();
@@ -17,8 +8,8 @@ function getAttachmentKind(att) {
   if (mime.startsWith('video/')) return 'video';
   const ext = String(att?.title || att?.name || att?.fileName || '').split('.').pop()?.toLowerCase();
   if (ext === 'pdf') return 'pdf';
-  if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) return 'image';
-  if (['mp4','mov','avi','webm'].includes(ext)) return 'video';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+  if (['mp4', 'mov', 'avi', 'webm'].includes(ext)) return 'video';
   return 'file';
 }
 

@@ -6,8 +6,7 @@
  * when the user uploads a new photo on the profile page.
  */
 import React, { useEffect, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+import { API_BASE } from "../services/api";
 
 /** Call this after a successful photo upload/delete to refresh all NavAvatars instantly */
 export function notifyAvatarUpdated() {

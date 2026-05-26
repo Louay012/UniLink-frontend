@@ -278,9 +278,9 @@ const isUploading = bulkStatus === "uploading";
         {activeTab === "bulk" && (
           <div className="bulk-panel">
             <p className="bulk-hint">
-              Upload a <strong>CSV</strong> or <strong>Excel</strong> file. Each row must have:{" "}
-              <code>firstName, lastName, email, password, role</code>.{" "}
-              <a href="/templates/bulk_users_template.csv" download className="template-link">
+              Upload a <strong>CSV</strong> or <strong>Excel</strong> file. Columns:{" "}
+              <code>firstName, lastName, email, password, role</code>, and optional <code>classGroup</code>.{" "}
+              <a href="/templates/bulk_users_template.csv" download className="template-link" title="Example: John,Doe,j.doe@example.com,secret123,STUDENT,GL1">
                 Download template ↓
               </a>
             </p>

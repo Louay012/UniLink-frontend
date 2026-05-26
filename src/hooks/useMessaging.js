@@ -8,6 +8,7 @@ import {
   sendMessageWithFiles,
   editMessage,
   deleteMessage,
+  toggleMessageReaction,
   markChatRead,
   deleteChat
 } from "../services/chat.service";
@@ -65,9 +66,10 @@ function sortMessagesAsc(items) {
   });
 }
 
-export default function useMessaging(selectedRole) {
+export default function useMessaging(selectedRole, courseId) {
   const socketRef = useRef(null);
   const typingStopTimerRef = useRef(null);
+  const typingExpiryTimerRef = useRef(null);
   const isTypingRef = useRef(false);
   const [chats, setChats] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -131,6 +133,22 @@ export default function useMessaging(selectedRole) {
     }
   }
 
+  function stopCurrentTyping(chatId = selectedChatId) {
+    const socket = socketRef.current;
+    if (!socket || !selectedChatId || !currentUserId) {
+      return;
+    }
+
+    clearTypingStopTimer();
+    if (isTypingRef.current) {
+      socket.emit("chat.typing.stop", {
+        chatId,
+        userId: currentUserId
+      });
+      isTypingRef.current = false;
+    }
+  }
+
   function emitTypingState(nextValue) {
     const socket = socketRef.current;
     if (!socket || !selectedChatId || !currentUserId) {
@@ -138,6 +156,11 @@ export default function useMessaging(selectedRole) {
     }
 
     const hasContent = Boolean(String(nextValue || "").trim());
+
+    if (!hasContent) {
+      stopCurrentTyping();
+      return;
+    }
 
     if (hasContent && !isTypingRef.current) {
       socket.emit("chat.typing.start", {
@@ -150,27 +173,13 @@ export default function useMessaging(selectedRole) {
 
     clearTypingStopTimer();
     typingStopTimerRef.current = setTimeout(() => {
-      if (socketRef.current && isTypingRef.current) {
-        socketRef.current.emit("chat.typing.stop", {
-          chatId: selectedChatId,
-          userId: currentUserId
-        });
-      }
-      isTypingRef.current = false;
+      stopCurrentTyping();
       typingStopTimerRef.current = null;
-    }, hasContent ? 1200 : 0);
-
-    if (!hasContent && isTypingRef.current && socket) {
-      socket.emit("chat.typing.stop", {
-        chatId: selectedChatId,
-        userId: currentUserId
-      });
-      isTypingRef.current = false;
-    }
+    }, 1200);
   }
 
   async function refreshChats() {
-    const payload = await listChats(selectedRole);
+    const payload = await listChats(selectedRole, courseId);
     const items = sortChatsByNewest((payload.items || []).map(normalizeChat));
 
     if (payload.actorUserId) {
@@ -300,8 +309,7 @@ export default function useMessaging(selectedRole) {
       setMessageDraft("");
       setMessageFiles([]);
       setReplyTargetMessage(null);
-      clearTypingStopTimer();
-      isTypingRef.current = false;
+      stopCurrentTyping(selectedChat.id);
       await Promise.all([refreshMessages(selectedChat.id), refreshChats()]);
     } finally {
       setIsSending(false);
@@ -310,11 +318,7 @@ export default function useMessaging(selectedRole) {
 
   async function toggleReaction(messageId, emoji) {
     if (!selectedChat) return;
-    try {
-      await chatService.toggleMessageReaction(selectedRole, selectedChat.id, messageId, emoji);
-    } catch (e) {
-      throw e;
-    }
+    await toggleMessageReaction(selectedRole, selectedChat.id, messageId, emoji);
   }
 
   async function createDirectChat() {
@@ -422,7 +426,7 @@ export default function useMessaging(selectedRole) {
     return () => {
       active = false;
     };
-  }, [selectedRole?.value, selectedRole?.userId]);
+  }, [selectedRole?.value, selectedRole?.userId, courseId]);
 
   useEffect(() => {
     const socket = connectSocket();
@@ -551,7 +555,7 @@ export default function useMessaging(selectedRole) {
 
       setTypingUsers((previous) => {
         const next = previous.filter((entry) => String(entry.userId) !== String(userId));
-        next.push({ userId, userName: userName || "Someone" });
+        next.push({ userId, userName: userName || "Someone", expiresAt: Date.now() + 2500 });
         return next;
       });
     };
@@ -577,6 +581,10 @@ export default function useMessaging(selectedRole) {
       });
     };
 
+    const presenceSnapshotHandler = ({ userIds }) => {
+      setOnlineUserIds(Array.isArray(userIds) ? userIds.map(String) : []);
+    };
+
     socket.on("message.created", createdHandler);
     socket.on("message.updated", updatedHandler);
     socket.on("message.deleted", deletedHandler);
@@ -584,6 +592,7 @@ export default function useMessaging(selectedRole) {
     socket.on("chat.typing.start", typingStartHandler);
     socket.on("chat.typing.stop", typingStopHandler);
     socket.on("presence.changed", presenceHandler);
+    socket.on("presence.snapshot", presenceSnapshotHandler);
     socket.on("message.reaction.updated", reactionUpdatedHandler);
 
     return () => {
@@ -594,6 +603,7 @@ export default function useMessaging(selectedRole) {
       socket.off("chat.typing.start", typingStartHandler);
       socket.off("chat.typing.stop", typingStopHandler);
       socket.off("presence.changed", presenceHandler);
+      socket.off("presence.snapshot", presenceSnapshotHandler);
       socket.off("message.reaction.updated", reactionUpdatedHandler);
     };
   }, [currentUserId, selectedChatId]);
@@ -606,10 +616,16 @@ export default function useMessaging(selectedRole) {
     const socket = connectSocket();
     if (!socket) return undefined;
 
-    socket.emit("user:join", { userId: currentUserId });
+    const joinUser = () => {
+      socket.emit("user:join", { userId: currentUserId });
+    };
+
+    joinUser();
+    socket.on("connect", joinUser);
     socketRef.current = socket;
 
     return () => {
+      socket.off("connect", joinUser);
       socketRef.current = socket;
     };
   }, [currentUserId]);
@@ -622,9 +638,29 @@ export default function useMessaging(selectedRole) {
     setTypingUsers([]);
     setFocusedMessageId(null);
     return () => {
+      stopCurrentTyping(selectedChatId);
       socket.emit("chat:leave", { chatId: selectedChatId });
     };
   }, [selectedChatId]);
+
+  useEffect(() => {
+    if (typingExpiryTimerRef.current) {
+      clearInterval(typingExpiryTimerRef.current);
+      typingExpiryTimerRef.current = null;
+    }
+
+    typingExpiryTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      setTypingUsers((previous) => previous.filter((entry) => !entry.expiresAt || entry.expiresAt > now));
+    }, 800);
+
+    return () => {
+      if (typingExpiryTimerRef.current) {
+        clearInterval(typingExpiryTimerRef.current);
+        typingExpiryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;

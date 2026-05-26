@@ -3,14 +3,14 @@ import { useNavigate } from "react-router-dom";
 import {
   User, Mail, GraduationCap, Building2, Layers, BookOpen,
   Hash, CalendarDays, Shield, Camera, Lock, Eye, EyeOff,
-  CheckCircle2, AlertCircle, Briefcase, MapPin, Clock, X
+  CheckCircle2, AlertCircle, Briefcase, MapPin, Clock, X,
+  Phone, Pencil
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { apiRequest } from "../../services/api";
+import { API_BASE, apiRequest } from "../../services/api";
 import { notifyAvatarUpdated } from "../../components/NavAvatar";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 const photoUrl = (userId) => `${API_BASE}/profile/photo/${userId}`;
 
 // ── Reusable info row ─────────────────────────────────────────────────
@@ -30,6 +30,66 @@ function InfoRow({ icon: Icon, label, value }) {
 }
 
 // ── Section divider inside the unified card ───────────────────────────
+function PhoneEditRow({ value, editing, draft, saving, onDraftChange, onEdit, onCancel, onSave }) {
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-0">
+      <Phone size={15} className="flex-shrink-0 text-indigo-400 mt-0.5" />
+      <div className="min-w-0 flex-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">
+          Phone
+        </span>
+
+        {editing ? (
+          <div className="flex w-full flex-col gap-2 sm:max-w-sm sm:flex-row">
+            <input
+              type="tel"
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+              disabled={saving}
+              placeholder="Add phone number"
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={saving}
+                title="Cancel"
+                className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <X size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saving}
+                title="Save phone"
+                className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-indigo-500 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <CheckCircle2 size={15} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-w-0 items-center justify-end gap-2">
+            <span className={`truncate text-sm font-semibold ${value ? "text-slate-800" : "text-slate-400"}`}>
+              {value || "No phone number"}
+            </span>
+            <button
+              type="button"
+              onClick={onEdit}
+              title={value ? "Edit phone" : "Add phone"}
+              className="h-8 w-8 inline-flex flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SectionHeading({ title }) {
   return (
     <div className="flex items-center gap-3 pt-4 pb-1">
@@ -224,6 +284,9 @@ export default function ProfilePage() {
   const [photoSrc, setPhotoSrc]             = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [pwModalOpen, setPwModalOpen]       = useState(false);
+  const [phoneEditing, setPhoneEditing]     = useState(false);
+  const [phoneDraft, setPhoneDraft]         = useState("");
+  const [phoneSaving, setPhoneSaving]       = useState(false);
 
   // Photo preview state (two-step: select → preview → save)
   const [pendingFile, setPendingFile]       = useState(null);
@@ -321,6 +384,34 @@ export default function ProfilePage() {
   }
 
   // ── Loading → skeleton ──────────────────────────────────────────────
+  function handlePhoneEdit() {
+    setPhoneDraft(profile?.phone || "");
+    setPhoneEditing(true);
+  }
+
+  function handlePhoneCancel() {
+    setPhoneDraft(profile?.phone || "");
+    setPhoneEditing(false);
+  }
+
+  async function handlePhoneSave() {
+    setPhoneSaving(true);
+    try {
+      const payload = await apiRequest("/profile/phone", selectedRole, {
+        method: "PATCH",
+        body: JSON.stringify({ phone: phoneDraft }),
+      });
+      setProfile((current) => current ? { ...current, phone: payload.phone || "" } : current);
+      setPhoneDraft(payload.phone || "");
+      setPhoneEditing(false);
+      toast.success("Your phone number has been updated.", "Phone Updated");
+    } catch (err) {
+      toast.error(err.message || "Could not update phone number.", "Phone Update Failed");
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
+
   if (loading) return <ProfileSkeleton />;
 
   if (!profile) {
@@ -458,7 +549,16 @@ export default function ProfilePage() {
           <SectionHeading title="Personal Information" />
           <InfoRow icon={User}         label="Full Name"    value={fullName} />
           <InfoRow icon={Mail}         label="Email"        value={profile.email} />
-          {profile.phone && <InfoRow icon={Hash} label="Phone" value={profile.phone} />}
+          <PhoneEditRow
+            value={profile.phone}
+            editing={phoneEditing}
+            draft={phoneDraft}
+            saving={phoneSaving}
+            onDraftChange={setPhoneDraft}
+            onEdit={handlePhoneEdit}
+            onCancel={handlePhoneCancel}
+            onSave={handlePhoneSave}
+          />
           <InfoRow icon={Shield}       label="Roles"        value={roleLabels} />
           <InfoRow icon={CalendarDays} label="Member Since" value={joinDate} />
 
