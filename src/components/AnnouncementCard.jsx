@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Paperclip, Download } from "lucide-react";
+import { Paperclip, Download, ExternalLink } from "lucide-react";
 import { API_BASE } from "../services/api";
 
 /* ─── helpers ───────────────────────────────────────────── */

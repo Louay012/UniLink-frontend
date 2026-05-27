@@ -261,11 +261,6 @@ export default function Sidebar({ isOpen, onClose }) {
                 {(!collapsed || isMobile) && <span>Chat</span>}
               </NavLink>
 
-              <NavLink to="/groups" title={collapsed && !isMobile ? "Groups" : undefined}
-                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
-                <Users size={18} className="flex-shrink-0" />
-                {(!collapsed || isMobile) && <span>Groups</span>}
-              </NavLink>
 
               <NavLink to="/feedback" title={collapsed && !isMobile ? "Bug Report" : undefined}
                 className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
