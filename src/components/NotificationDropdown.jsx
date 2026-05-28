@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, MessageCircle, Paperclip, X, CheckCheck } from "lucide-react";
 
@@ -107,6 +107,13 @@ function NotificationGroup({ label, items, onClose, onDismiss }) {
 }
 
 export default function NotificationDropdown({ notifications = [], onClose, onMarkAllRead, onDismiss }) {
+  // Auto-mark all notifications as read when the dropdown opens
+  useEffect(() => {
+    if (onMarkAllRead && notifications.some((n) => !n.read)) {
+      onMarkAllRead();
+    }
+  }, []); // only on mount (dropdown open)
+
   const sorted = [...notifications].sort(
     (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
   );

@@ -10,7 +10,8 @@ import {
   deleteMessage,
   toggleMessageReaction,
   markChatRead,
-  deleteChat
+  deleteChat,
+  toggleArchiveChat
 } from "../services/chat.service";
 import { connectSocket } from "../services/socket";
 
@@ -361,6 +362,14 @@ export default function useMessaging(selectedRole, courseId) {
     await deleteChat(selectedRole, selectedChatId);
     setSelectedChatId(null);
     await refreshChats();
+  }
+
+  async function toggleArchive() {
+    if (!selectedChatId) return;
+    const isCurrentlyArchived = selectedChat?.isArchived || false;
+    await toggleArchiveChat(selectedRole, selectedChatId, !isCurrentlyArchived);
+    
+    setChats(prev => prev.map(c => c.id === selectedChatId ? { ...c, isArchived: !isCurrentlyArchived } : c));
   }
 
   function beginEditMessage(message) {
@@ -744,6 +753,7 @@ export default function useMessaging(selectedRole, courseId) {
     saveEditedMessage,
     removeMessage,
     removeChat,
+    toggleArchive,
     searchQuery,
     setSearchQuery,
     messageSearchQuery,

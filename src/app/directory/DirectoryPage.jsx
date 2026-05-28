@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { searchUsers, startDirectChat } from "../../services/chat.service";
+import NavAvatar from "../../components/NavAvatar";
 
 export default function DirectoryPage() {
   const { selectedRole } = useAuth();
@@ -49,9 +50,12 @@ export default function DirectoryPage() {
         {results.length === 0 && <div className="text-sm text-slate-500">No results</div>}
         {results.map((u) => (
           <div key={u.id} className="flex items-center justify-between py-2 border-b last:border-0">
-            <div>
-              <div className="font-semibold">{u.name}</div>
-              <div className="text-xs text-slate-500">{u.email}</div>
+            <div className="flex items-center gap-3">
+              <NavAvatar userId={u.id} initials={u.name?.[0] || "U"} size={10} />
+              <div>
+                <div className="font-semibold">{u.name}</div>
+                <div className="text-xs text-slate-500">{u.email}</div>
+              </div>
             </div>
             <div className="flex gap-2">
               <button onClick={() => openProfile(u.id)} className="px-3 py-1 rounded-lg bg-indigo-50 text-indigo-600">View</button>

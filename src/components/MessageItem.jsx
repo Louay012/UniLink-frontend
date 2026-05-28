@@ -60,6 +60,37 @@ async function downloadAttachment(url, fileName = "attachment") {
   }
 }
 
+function MessageAvatar({ userId, initials, isMine }) {
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [photoKey, setPhotoKey] = useState(Date.now());
+
+  React.useEffect(() => {
+    function refresh() { setPhotoKey(Date.now()); setPhotoLoaded(false); }
+    window.addEventListener("avatar-updated", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("avatar-updated", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
+  const src = `${API_BASE}/profile/photo/${userId}?t=${photoKey}`;
+
+  return (
+    <span className={`message-avatar ${isMine ? "mine" : ""} overflow-hidden p-0`}>
+      <img
+        src={src}
+        alt={initials}
+        className="w-full h-full object-cover rounded-full"
+        onLoad={() => setPhotoLoaded(true)}
+        onError={() => setPhotoLoaded(false)}
+        style={{ display: photoLoaded ? "block" : "none" }}
+      />
+      {!photoLoaded ? initials : null}
+    </span>
+  );
+}
+
 export default function MessageItem({
   message,
   currentUserId,
@@ -99,7 +130,7 @@ export default function MessageItem({
 
   return (
     <div className={`message-row ${isMine ? "mine" : "theirs"}`} ref={innerRef} data-message-id={message.id}>
-      {!isMine ? <span className="message-avatar">{initials}</span> : null}
+      {!isMine ? <MessageAvatar userId={message.senderUserId} initials={initials} isMine={false} /> : null}
 
       <div className={`message-item ${isMine ? "mine" : ""} ${isHighlighted ? "highlighted" : ""}`}>
         {!isMine && !isDirect ? <strong>{senderName}</strong> : null}
@@ -217,7 +248,7 @@ export default function MessageItem({
         ) : null}
       </div>
 
-      {isMine ? <span className="message-avatar mine">{initials}</span> : null}
+      {isMine ? <MessageAvatar userId={message.senderUserId} initials={initials} isMine={true} /> : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { listCourses, listCourseAnnouncements, listCourseAttachments, getReadAnnouncementIds, getUnreadCounts, markAnnouncementsRead as apiMarkRead, markCourseAnnouncementsRead as apiMarkCourseRead } from "../services/course.service";
-import { listChats } from "../services/chat.service";
+import { listChats, markChatRead } from "../services/chat.service";
 import { connectSocket } from "../services/socket";
 
 // Only show notifications from the last 30 days
@@ -166,22 +166,56 @@ export default function useNotifications(selectedRole) {
       } catch { /* ignore */ }
     }
 
+    // Handle chat message notifications — mark each chat as read
+    const chatIds = notifications
+      .filter((n) => n.type === "message" && n.id.startsWith("chat-") && !n.read)
+      .map((n) => n.id.replace("chat-", ""));
+
+    for (const chatId of chatIds) {
+      try {
+        await markChatRead(selectedRole, chatId);
+      } catch { /* ignore */ }
+    }
+
     // Optimistically mark all as read locally
     setServerReadIds((prev) => {
       const next = new Set(prev);
       for (const id of announcementIds) next.add(id);
       return next;
     });
+
+    // Update chat notifications locally
+    if (chatIds.length > 0) {
+      setNotifications((prev) =>
+        prev.map((n) => (n.type === "message" && !n.read ? { ...n, read: true } : n))
+      );
+    }
   }, [notifications, serverReadIds, selectedRole]);
 
   const dismiss = useCallback(async (notificationId) => {
-    // Find the announcement ID from the notification
+    // Find the notification
     const notif = notifications.find((n) => n.id === notificationId);
-    if (notif?.announcementId) {
+    if (!notif) return;
+
+    if (notif.announcementId) {
       setServerReadIds((prev) => new Set([...prev, notif.announcementId]));
       try {
         await apiMarkRead(selectedRole, [notif.announcementId]);
       } catch { /* ignore */ }
+    }
+
+    // Handle chat message notifications — extract chatId from notification id ("chat-{chatId}")
+    if (notif.type === "message" && notif.id.startsWith("chat-")) {
+      const chatId = notif.id.replace("chat-", "");
+      if (chatId) {
+        try {
+          await markChatRead(selectedRole, chatId);
+          // Update the notification locally to read
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
+          );
+        } catch { /* ignore */ }
+      }
     }
   }, [notifications, selectedRole]);
 

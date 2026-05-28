@@ -145,6 +145,14 @@ async function submitFeedback(selectedRole, payload) {
   });
 }
 
+async function toggleArchiveChat(selectedRole, chatId, isArchived) {
+  return apiRequest(`/chats/${chatId}/archive`, selectedRole, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isArchived })
+  });
+}
+
 export {
   listChats,
   listContacts,
@@ -158,5 +166,6 @@ export {
   toggleMessageReaction,
   markChatRead,
   deleteChat,
-  submitFeedback
+  submitFeedback,
+  toggleArchiveChat
 };

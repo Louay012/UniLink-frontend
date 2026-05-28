@@ -24,6 +24,7 @@ export default function FeedbackPage() {
   const [details, setDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!token) navigate("/login", { replace: true });

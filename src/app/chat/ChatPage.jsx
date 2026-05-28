@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import ChatBox from "../../components/ChatBox";
-import { Paperclip, Pencil, Send, X, Trash2, MessageCircle, Users, FileText, ArrowLeft, PanelRightClose, PanelRight, Search, UserRound, Check } from 'lucide-react';
+import { Paperclip, Pencil, Send, X, Trash2, MessageCircle, Users, FileText, ArrowLeft, PanelRightClose, PanelRight, Search, UserRound, Check, Archive, ArchiveRestore } from 'lucide-react';
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import useMessaging from "../../hooks/useMessaging";
@@ -91,6 +91,41 @@ function getInitials(value) {
     .join("");
 }
 
+function ChatAvatar({ userId, fallback, className }) {
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [photoKey, setPhotoKey] = useState(Date.now());
+
+  React.useEffect(() => {
+    function refresh() { setPhotoKey(Date.now()); setPhotoLoaded(false); }
+    window.addEventListener("avatar-updated", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("avatar-updated", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
+  const src = userId ? `${API_BASE}/profile/photo/${userId}?t=${photoKey}` : null;
+
+  // We add 'overflow-hidden p-0 flex items-center justify-center relative' 
+  // to smoothly contain the img inside whatever class the caller provides
+  return (
+    <span className={`${className} overflow-hidden p-0 relative flex items-center justify-center`}>
+      {src && (
+        <img
+          src={src}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ borderRadius: 'inherit', display: photoLoaded ? "block" : "none" }}
+          onLoad={() => setPhotoLoaded(true)}
+          onError={() => setPhotoLoaded(false)}
+        />
+      )}
+      {!photoLoaded || !src ? fallback : null}
+    </span>
+  );
+}
+
 export default function ChatPage() {
   const { selectedRole, token } = useAuth();
   const navigate = useNavigate();
@@ -137,6 +172,7 @@ export default function ChatPage() {
     saveEditedMessage,
     removeMessage,
     removeChat,
+    toggleArchive,
     searchQuery,
     setSearchQuery,
     messageSearchQuery,
@@ -163,19 +199,59 @@ export default function ChatPage() {
   const [isMembersPanelOpen, setIsMembersPanelOpen] = useState(true);
 
   const directChats = useMemo(
-    () => filteredChats.filter((chat) => chat.chatType === "DIRECT"),
+    () => filteredChats.filter((chat) => chat.chatType === "DIRECT" && !chat.isArchived),
     [filteredChats]
   );
   const channelChats = useMemo(
-    () => filteredChats.filter((chat) => chat.chatType !== "DIRECT"),
+    () => filteredChats.filter((chat) => chat.chatType !== "DIRECT" && !chat.isArchived),
     [filteredChats]
   );
-  const visibleChats = chatView === "DIRECT" ? directChats : channelChats;
+  const archivedChats = useMemo(
+    () => filteredChats.filter((chat) => chat.isArchived),
+    [filteredChats]
+  );
+  const visibleChats = chatView === "DIRECT" ? directChats : (chatView === "ARCHIVED" ? archivedChats : channelChats);
   const isSelectedChatDirect = selectedChat?.chatType === "DIRECT";
   const displayedContacts = useMemo(
-    () => (newChatSearch.trim() ? searchedUsers : contacts)
-      .filter((contact) => String(contact.id) !== String(currentUserId)),
-    [newChatSearch, searchedUsers, contacts, currentUserId]
+    () => {
+      const list = (newChatSearch.trim() ? searchedUsers : contacts)
+        .filter((contact) => String(contact.id) !== String(currentUserId));
+      
+      const roleVal = selectedRole?.value;
+      
+       list.sort((a, b) => {
+         const roleVal = selectedRole?.value;
+         
+         // Define priority order for sorting
+         const getPriority = (role) => {
+           if (!roleVal) return 0; // No role selected, no priority
+           
+           if (roleVal === 'TEACHER') {
+             if (role === 'TEACHER') return 3;
+             if (role === 'STUDENT') return 2;
+             return 1;
+           }
+           
+           if (roleVal === 'STUDENT') {
+             if (role === 'STUDENT') return 3;
+             if (role === 'TEACHER') return 2;
+             return 1;
+           }
+           
+           // For other roles (ADMIN, COORDINATOR, etc.), use original logic
+           return role === roleVal ? 2 : 1;
+         };
+         
+         const aPriority = getPriority(a.role);
+         const bPriority = getPriority(b.role);
+         
+         if (aPriority !== bPriority) return bPriority - aPriority;
+         return (a.name || "").localeCompare(b.name || "");
+       });
+      
+      return list;
+    },
+    [newChatSearch, searchedUsers, contacts, currentUserId, selectedRole]
   );
   const selectedContact = useMemo(
     () => displayedContacts.find((contact) => String(contact.id) === String(selectedContactId)) || contacts.find((contact) => String(contact.id) === String(selectedContactId)) || null,
@@ -269,6 +345,10 @@ export default function ChatPage() {
 
   function renderChatItem(chat) {
     const lastActivityTime = chat.lastMessage?.createdAt || chat.updatedAt || chat.createdAt;
+    const chatCounterpart = chat.chatType === "DIRECT" 
+      ? (chat.members || []).find((m) => String(m.id) !== String(currentUserId))
+      : null;
+    const avatarUserId = chatCounterpart ? chatCounterpart.id : null;
 
     return (
       <button
@@ -277,7 +357,7 @@ export default function ChatPage() {
         onClick={() => setSelectedChatId(chat.id)}
       >
         <div className="messenger-chat-row">
-          <span className="messenger-chat-avatar">{getInitials(chat.title)}</span>
+          <ChatAvatar userId={avatarUserId} className="messenger-chat-avatar" fallback={getInitials(chat.title)} />
           <div className="messenger-chat-meta">
             <div className="messenger-chat-top">
               <h4>{chat.title}</h4>
@@ -432,6 +512,13 @@ export default function ChatPage() {
             >
               Channels
             </button>
+            <button
+              type="button"
+              className={chatView === "ARCHIVED" ? "active" : ""}
+              onClick={() => setChatView("ARCHIVED")}
+            >
+              Archived
+            </button>
           </div>
 
           {chatView === "DIRECT" ? (
@@ -451,7 +538,7 @@ export default function ChatPage() {
             <div className="chat-list">
               {visibleChats.map((chat) => renderChatItem(chat))}
               {!visibleChats.length ? (
-                <p className="chat-empty-state">{chatView === "DIRECT" ? "No direct chats yet." : "No channel chats available."}</p>
+                <p className="chat-empty-state">{chatView === "DIRECT" ? "No direct chats yet." : chatView === "ARCHIVED" ? "No archived chats." : "No channel chats available."}</p>
               ) : null}
             </div>
           </aside>
@@ -471,7 +558,7 @@ export default function ChatPage() {
                     <ArrowLeft size={18} />
                   </button>
                   <div className="conversation-meta">
-                    <span className="conversation-avatar">{getInitials(selectedChat.title)}</span>
+                    <ChatAvatar userId={isSelectedChatDirect && counterpart ? counterpart.id : null} className="conversation-avatar" fallback={getInitials(selectedChat.title)} />
                     <div>
                       <h4>{selectedChat.title}</h4>
                       <small className="conversation-sub">
@@ -507,6 +594,16 @@ export default function ChatPage() {
                         <Trash2 size={16} />
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="archive-chat-btn"
+                      onClick={toggleArchive}
+                      aria-label={selectedChat.isArchived ? "Unarchive chat" : "Archive chat"}
+                      title={selectedChat.isArchived ? "Unarchive chat" : "Archive chat"}
+                      style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer", marginLeft: "0.5rem" }}
+                    >
+                      {selectedChat.isArchived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                    </button>
                     <span className={`chat-pill ${isSelectedChatDirect ? "direct" : "channel"}`}>
                       {isSelectedChatDirect ? "Direct" : "Channel"}
                     </span>
@@ -636,7 +733,7 @@ export default function ChatPage() {
                         {selectedChat.members?.map((m) => (
                           <div key={m.id} className="member-item">
                             <span className="member-avatar-wrap">
-                              <span className="member-avatar">{getInitials(m.name)}</span>
+                              <ChatAvatar userId={m.id} className="member-avatar" fallback={getInitials(m.name)} />
                               <span className={`presence-dot member ${onlineMemberIds.has(String(m.id)) ? "online" : "offline"}`} />
                             </span>
                             <div className="member-meta">
@@ -759,9 +856,11 @@ export default function ChatPage() {
                       role="option"
                       aria-selected={isSelected}
                     >
-                      <span className="new-chat-contact-avatar">
-                        <UserRound size={17} />
-                      </span>
+                      <ChatAvatar 
+                        userId={contact.id} 
+                        className="new-chat-contact-avatar" 
+                        fallback={<UserRound size={17} />} 
+                      />
                       <span className="new-chat-contact-main">
                         <strong>{contact.name || contact.email || "Unknown user"}</strong>
                         <small>{contact.email || contact.role || "UniLink member"}</small>
