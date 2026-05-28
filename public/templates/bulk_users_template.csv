@@ -1,0 +1,4 @@
+firstName,lastName,email,password,role,classGroup
+John,Doe,john.doe@example.com,secret123,STUDENT,GL1
+Jane,Smith,jane.smith@example.com,secret456,TEACHER,
+Admin,User,admin@example.com,secret789,ADMIN,

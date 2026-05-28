@@ -219,15 +219,17 @@ const isUploading = bulkStatus === "uploading";
           <h3 className="title">Create New User</h3>
           <span className="subtitle">Directory management</span>
         </div>
-        <div className="tab-bar">
+        <div className="flex gap-1 bg-white/5 p-1 rounded-xl w-fit mb-6">
           <button
-            className={`tab-btn ${activeTab === "single" ? "active" : ""}`}
+          type="button"                          
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200  ${activeTab === "single" ?  "bg-blue-600 text-white shadow-lg shadow-blue-600/40" : "text-gray-400 hover:text-black hover:bg-white/10"}`}
             onClick={() => setActiveTab("single")}
           >
             Single User
           </button>
           <button
-            className={`tab-btn ${activeTab === "bulk" ? "active" : ""}`}
+          type="button"                          
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all duration-200  ${activeTab === "bulk" ? "bg-blue-600 text-white shadow-lg shadow-blue-600/40" : "text-gray-400 hover:text-black hover:bg-white/10"}`}
             onClick={() => setActiveTab("bulk")}
           >
             Bulk Upload
