@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, MessageCircle, Paperclip, X, CheckCheck } from "lucide-react";
+import { Bell, Bug, MessageCircle, Paperclip, X, CheckCheck } from "lucide-react";
 
 function timeAgo(dateStr) {
   if (!dateStr) return "";
@@ -46,6 +46,7 @@ const ICON_MAP = {
   announcement: { Icon: Bell,           bg: "bg-amber-500/15", text: "text-amber-700" },
   message:      { Icon: MessageCircle,  bg: "bg-blue-500/15",  text: "text-blue-700" },
   file:         { Icon: Paperclip,      bg: "bg-emerald-500/15", text: "text-emerald-700" },
+  "bug-report": { Icon: Bug,            bg: "bg-rose-500/15",  text: "text-rose-700" },
 };
 
 function NotificationItem({ item, onClose, onDismiss }) {

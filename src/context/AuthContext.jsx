@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
+import { apiRequest } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -67,6 +68,45 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     localStorage.setItem("unilink_selected_role", selectedRole.value);
   }, [selectedRole.value]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrateUserProfile() {
+      if (user?.id) return;
+      if (!token) return;
+      if (!selectedRole?.value) return;
+
+      try {
+        const profile = await apiRequest("/profile", selectedRole);
+        if (!active || !profile?.id) return;
+
+        const primaryRole = Array.isArray(profile.roles) && profile.roles.length
+          ? String(profile.roles[0].code || profile.roles[0]).toUpperCase()
+          : selectedRole.value;
+
+        const hydratedUser = {
+          id: profile.id,
+          userId: profile.id,
+          firstName: profile.firstName || "",
+          lastName: profile.lastName || "",
+          email: profile.email || "",
+          role: primaryRole,
+          roles: profile.roles || []
+        };
+
+        setUser(hydratedUser);
+        localStorage.setItem("unilink_user", JSON.stringify(hydratedUser));
+      } catch {
+        // Ignore hydration failures; the app can still function with role-only access.
+      }
+    }
+
+    hydrateUserProfile();
+    return () => {
+      active = false;
+    };
+  }, [selectedRole?.value, selectedRole?.userId, token, user?.id]);
 
   const value = useMemo(
     () => ({
