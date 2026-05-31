@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
 
-const ROLES = ["STUDENT", "TEACHER", "COORDINATOR", "ADMIN"];
+const ROLES = ["STUDENT", "TEACHER", "ADMIN"];
 
 const ACCEPTED_EXTENSIONS = /\.(csv|xlsx|xls)$/i;
  
