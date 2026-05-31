@@ -21,6 +21,8 @@ import {
   listCourseAnnouncements,
   listCourseAttachments
 } from "../../services/course.service";
+import { getAnnouncementAudienceOptions } from "../../services/announcement.service";
+import { userHasRole } from "../../utils/roles";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -363,9 +365,11 @@ export default function TeacherDashboard() {
 
   const [courses, setCourses] = useState([]);
   const [courseBundles, setCourseBundles] = useState({});
+  const [coordinatorSections, setCoordinatorSections] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const teacherUserId = user?.id || selectedRole?.userId || null;
+  const isCoordinator = userHasRole(user, "COORDINATOR");
   const teacherName = user
     ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email
     : "Teacher";
@@ -380,10 +384,16 @@ export default function TeacherDashboard() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const payload = await listCourses(selectedRole);
+        const [payload, audienceOptions] = await Promise.all([
+          listCourses(selectedRole),
+          isCoordinator
+            ? getAnnouncementAudienceOptions(selectedRole).catch(() => ({ classGroups: [] }))
+            : Promise.resolve({ classGroups: [] })
+        ]);
         const items = payload.items || [];
         if (!active) return;
         setCourses(items);
+        setCoordinatorSections(audienceOptions.classGroups || []);
 
         const bundles = await Promise.all(
           items.map(async (course) => {
@@ -409,7 +419,7 @@ export default function TeacherDashboard() {
 
     loadDashboard();
     return () => { active = false; };
-  }, [selectedRole, toast]);
+  }, [isCoordinator, selectedRole, toast]);
 
   const enrichedCourses = useMemo(() => {
     return courses
@@ -451,6 +461,8 @@ export default function TeacherDashboard() {
     { icon: BookOpen, label: "Courses", to: "/courses" },
     { icon: CalendarDays, label: "Planner", to: "/dashboard" }
   ];
+  const previewCourses = enrichedCourses.slice(0, 4);
+  const sectionLabel = coordinatorSections.length === 1 ? "section" : "sections";
 
   return (
     <div className="flex flex-col gap-6 pb-8 w-full min-w-0 max-w-none mx-auto">
@@ -476,6 +488,31 @@ export default function TeacherDashboard() {
         <StatCard icon={FileText} label="Materials" value={stats.totalFiles} color="#10b981" loading={loading} />
       </div>
 
+      {isCoordinator ? (
+        <section className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[0.7rem] font-bold uppercase tracking-widest text-indigo-400">Coordinator access</p>
+              <h2 className="font-heading text-base font-extrabold text-slate-900">
+                You coordinate {loading ? "..." : `${coordinatorSections.length} ${sectionLabel}`}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {coordinatorSections.length
+                  ? coordinatorSections.map((section) => `${section.code}${section.name ? ` - ${section.name}` : ""}`).join(", ")
+                  : "No coordinated section is assigned yet."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/announcements")}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+            >
+              <Bell size={16} /> Post global announcement
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <TeacherCalendar storageKey={`unilink_teacher_calendar_${teacherUserId || "local"}`} />
 
       <section className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -496,15 +533,22 @@ export default function TeacherDashboard() {
           <h2 className="text-base font-bold text-slate-900">
             My Courses <span className="text-slate-400 font-normal text-sm">({enrichedCourses.length})</span>
           </h2>
+          <button
+            type="button"
+            onClick={() => navigate("/courses")}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600"
+          >
+            View all
+          </button>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((item) => <SkeletonCard key={item} />)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((item) => <SkeletonCard key={item} />)}
           </div>
         ) : enrichedCourses.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {enrichedCourses.map((course) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {previewCourses.map((course) => (
               <CourseCard key={course.id} course={course} onClick={() => navigate(`/courses/${course.id}`)} />
             ))}
           </div>

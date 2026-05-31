@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { apiRequest } from "../../services/api";
+import { userHasRole } from "../../utils/roles";
 
 const ROLES = ["STUDENT", "TEACHER", "COORDINATOR", "ADMIN"];
 
@@ -233,8 +234,8 @@ export default function AdminPage() {
     }
   }
 
-  const coordinators = users.filter((u) => u.role === "COORDINATOR");
-  const teachers = users.filter((u) => u.role === "TEACHER");
+  const coordinators = users.filter((u) => userHasRole(u, "COORDINATOR"));
+  const teachers = users.filter((u) => userHasRole(u, "TEACHER"));
 
   return (
     <div className="page-shell admin-shell">

@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useNotificationContext } from "../context/NotificationContext";
 import { listCourses } from "../services/course.service";
+import { userHasRole } from "../utils/roles";
 import NavAvatar from "./NavAvatar";
 
 import {
@@ -57,7 +58,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const { user, token, logout, selectedRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = userHasRole(user, "ADMIN");
   const links = getLinks(isAdmin);
   const isStudentSidebar = !isAdmin;
 

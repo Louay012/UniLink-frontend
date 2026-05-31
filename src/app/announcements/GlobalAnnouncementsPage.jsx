@@ -12,6 +12,7 @@ import {
   updateGlobalAnnouncement
 } from "../../services/announcement.service";
 import { API_BASE } from "../../services/api";
+import { userHasRole } from "../../utils/roles";
 
 function formatDate(value) {
   if (!value) return "";
@@ -190,7 +191,7 @@ function StagedAttachmentPreview({ files = [], onRemove }) {
   );
 }
 
-function ToggleList({ title, items, selectedIds, onToggle, disabled = false }) {
+function ToggleList({ title, items, selectedIds, onToggle, disabled = false, lockedIds = [] }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">{title}</p>
@@ -198,6 +199,7 @@ function ToggleList({ title, items, selectedIds, onToggle, disabled = false }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
           {items.map((item) => {
             const checked = selectedIds.includes(item.id);
+            const locked = lockedIds.includes(item.id);
             return (
               <label
                 key={item.id}
@@ -206,7 +208,7 @@ function ToggleList({ title, items, selectedIds, onToggle, disabled = false }) {
                 <input
                   type="checkbox"
                   checked={checked}
-                  disabled={disabled}
+                  disabled={disabled || locked}
                   onChange={() => onToggle(item.id)}
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
@@ -224,7 +226,7 @@ function ToggleList({ title, items, selectedIds, onToggle, disabled = false }) {
   );
 }
 
-function AnnouncementModal({ mode, form, setForm, files, setFiles, existingAttachments, options, onClose, onSubmit, saving, canUseDepartments }) {
+function AnnouncementModal({ mode, form, setForm, files, setFiles, existingAttachments, options, onClose, onSubmit, saving, canUseDepartments, isCoordinator }) {
   function toggleArray(field, id) {
     setForm((previous) => {
       const selected = previous[field].includes(id);
@@ -279,18 +281,20 @@ function AnnouncementModal({ mode, form, setForm, files, setFiles, existingAttac
           </label>
 
           <div className="grid gap-4">
+            {canUseDepartments ? (
+              <ToggleList
+                title="Departments"
+                items={options.departments || []}
+                selectedIds={form.departmentIds}
+                onToggle={(id) => toggleArray("departmentIds", id)}
+              />
+            ) : null}
             <ToggleList
-              title="Departments"
-              items={options.departments || []}
-              selectedIds={form.departmentIds}
-              onToggle={(id) => toggleArray("departmentIds", id)}
-              disabled={!canUseDepartments}
-            />
-            <ToggleList
-              title="Sections"
+              title={isCoordinator ? "Your Sections" : "Sections"}
               items={options.classGroups || []}
               selectedIds={form.classGroupIds}
               onToggle={(id) => toggleArray("classGroupIds", id)}
+              lockedIds={isCoordinator && (options.classGroups || []).length === 1 ? [options.classGroups[0].id] : []}
             />
           </div>
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4">
@@ -352,8 +356,13 @@ export default function GlobalAnnouncementsPage() {
   const [files, setFiles] = useState([]);
 
   const currentUserId = user?.id || selectedRole?.userId || null;
-  const canCreate = options.canCreate && ["ADMIN", "COORDINATOR"].includes(selectedRole?.value);
-  const canUseDepartments = selectedRole?.value === "ADMIN";
+  const isAdmin = userHasRole(user, "ADMIN");
+  const isCoordinator = !isAdmin && userHasRole(user, "COORDINATOR");
+  const canCreate = options.canCreate && (isAdmin || isCoordinator || ["ADMIN", "COORDINATOR"].includes(selectedRole?.value));
+  const canUseDepartments = isAdmin;
+  const singleCoordinatorSectionId = isCoordinator && options.classGroups?.length === 1
+    ? options.classGroups[0].id
+    : null;
 
   async function loadData() {
     setLoading(true);
@@ -395,7 +404,10 @@ export default function GlobalAnnouncementsPage() {
 
   function openCreate() {
     setEditingAnnouncement(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      classGroupIds: singleCoordinatorSectionId ? [singleCoordinatorSectionId] : []
+    });
     setFiles([]);
     setModalMode("create");
   }
@@ -405,8 +417,12 @@ export default function GlobalAnnouncementsPage() {
     setForm({
       title: announcement.title || "",
       body: announcement.body || "",
-      departmentIds: (announcement.targets || []).filter((target) => target.type === "DEPARTMENT").map((target) => target.value),
-      classGroupIds: (announcement.targets || []).filter((target) => target.type === "CLASS_GROUP").map((target) => target.value)
+      departmentIds: canUseDepartments
+        ? (announcement.targets || []).filter((target) => target.type === "DEPARTMENT").map((target) => target.value)
+        : [],
+      classGroupIds: singleCoordinatorSectionId
+        ? [singleCoordinatorSectionId]
+        : (announcement.targets || []).filter((target) => target.type === "CLASS_GROUP").map((target) => target.value)
     });
     setFiles([]);
     setModalMode("edit");
@@ -451,7 +467,7 @@ export default function GlobalAnnouncementsPage() {
   }
 
   function canManage(announcement) {
-    return selectedRole?.value === "ADMIN" || String(announcement.createdBy) === String(currentUserId);
+    return isAdmin || String(announcement.createdBy) === String(currentUserId);
   }
 
   return (
@@ -548,6 +564,7 @@ export default function GlobalAnnouncementsPage() {
           onSubmit={handleSubmit}
           saving={saving}
           canUseDepartments={canUseDepartments}
+          isCoordinator={isCoordinator}
         />
       ) : null}
 

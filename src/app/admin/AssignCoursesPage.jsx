@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
+import { userHasRole } from '../../utils/roles';
 
 const AssignCoursesPage = () => {
   const { user, isAdmin, logout } = useAuth();
@@ -31,7 +32,7 @@ const AssignCoursesPage = () => {
         ]);
         setCourses(coursesData);
         // Filter for students and teachers only
-        setUsers(usersData.filter(u => u.role === "STUDENT" || u.role === "TEACHER"));
+        setUsers(usersData.filter(u => userHasRole(u, "STUDENT") || userHasRole(u, "TEACHER")));
       } catch (err) {
         setError(err.message);
       } finally {
