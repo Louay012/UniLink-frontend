@@ -129,19 +129,7 @@ export default function CreateClassGroupPage() {
               ))}
             </select>
           </label>
-          <label>
-            Level
-            <select
-              value={form.levelId}
-              onChange={(e) => setForm((p) => ({ ...p, levelId: e.target.value }))}
-              required
-            >
-              <option value="">Select...</option>
-              {levels.map((l) => (
-                <option key={l.id} value={l.id}>{l.code} - {l.name}</option>
-              ))}
-            </select>
-          </label>
+          
           <label>
             Coordinator (optional)
             <select
