@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
+import { userHasRole } from '../../utils/roles';
 
 export default function AcademicSetupPage() {
   const { user, isAdmin } = useAuth();
@@ -74,9 +75,9 @@ export default function AcademicSetupPage() {
     }
   }
 
-  const coordinators = useMemo(() => users.filter((u) => u.role === 'COORDINATOR'), [users]);
-  const teachers = useMemo(() => users.filter((u) => u.role === 'TEACHER'), [users]);
-  const students = useMemo(() => users.filter((u) => u.role === 'STUDENT'), [users]);
+  const coordinators = useMemo(() => users.filter((u) => userHasRole(u, 'COORDINATOR')), [users]);
+  const teachers = useMemo(() => users.filter((u) => userHasRole(u, 'TEACHER')), [users]);
+  const students = useMemo(() => users.filter((u) => userHasRole(u, 'STUDENT')), [users]);
 
   async function handleCreateClassGroup(event) {
     event.preventDefault();

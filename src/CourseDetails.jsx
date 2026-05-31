@@ -16,6 +16,7 @@ import useMessaging from './hooks/useMessaging';
 import AnnouncementCard from './components/AnnouncementCard';
 import AttachmentPreview from './components/AttachmentPreview';
 import ChatBox from './components/ChatBox';
+import { userHasRole } from './utils/roles';
 
 function pickColor(seed) {
   const palette = ['#0e6ba8', '#a23b72', '#f18f01', '#06a77d', '#d62828', '#9d4edd'];
@@ -43,7 +44,7 @@ function mapAnnouncement(announcement, teacherName) {
 export default function CourseDetails({ basePath = '' }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { selectedRole } = useAuth();
+  const { selectedRole, user } = useAuth();
   const toast = useToast();
   const { dismissByCourseId } = useNotificationContext();
 
@@ -65,7 +66,8 @@ export default function CourseDetails({ basePath = '' }) {
   const fileInputRef = useRef(null);
   const withBase = (path) => `${basePath}${path}`;
   const cardColor = course?.color || pickColor(course?.code || id);
-  const isTeacherView = selectedRole?.value === 'TEACHER';
+  const isAssignedTeacher = course?.teacher?.id && String(course.teacher.id) === String(user?.id || selectedRole?.userId || '');
+  const isTeacherView = selectedRole?.value === 'TEACHER' || userHasRole(user, 'TEACHER') || isAssignedTeacher;
 
   const loadCourseData = useCallback(async () => {
     setLoading(true);

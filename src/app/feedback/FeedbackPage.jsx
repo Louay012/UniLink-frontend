@@ -5,6 +5,7 @@ import { Send, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { listFeedbackReports, submitFeedbackReport } from "../../services/feedback.service";
+import { userHasRole } from "../../utils/roles";
 
 const CATEGORY_OPTIONS = [
   { value: "BUG", label: "Bug report" },
@@ -17,7 +18,7 @@ export default function FeedbackPage() {
   const { token, selectedRole, user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = userHasRole(user, "ADMIN");
 
   const [category, setCategory] = useState("BUG");
   const [subject, setSubject] = useState("");
@@ -33,7 +34,7 @@ export default function FeedbackPage() {
   useEffect(() => {
     let active = true;
     async function loadReports() {
-      if (user?.role !== "ADMIN") {
+      if (!isAdmin) {
         setReports([]);
         return;
       }
@@ -50,7 +51,7 @@ export default function FeedbackPage() {
     }
     loadReports();
     return () => { active = false; };
-  }, [selectedRole, user?.role]);
+  }, [selectedRole, isAdmin]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -72,7 +73,7 @@ export default function FeedbackPage() {
       toast.success("Bug report submitted.", "Sent!");
       setSubject("");
       setDetails("");
-      if (user?.role === "ADMIN" && payload.report) {
+      if (isAdmin && payload.report) {
         setReports((previous) => [payload.report, ...previous]);
       }
     } catch (err) {

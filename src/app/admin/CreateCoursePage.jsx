@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
+import { userHasRole } from '../../utils/roles';
 
 export default function CreateCoursePage() {
   const { user, isAdmin } = useAuth();
@@ -36,7 +37,7 @@ export default function CreateCoursePage() {
           apiRequest('/admin/class-groups'),
           apiRequest('/admin/courses')
         ]);
-        setTeachers((users || []).filter((u) => u.role === 'TEACHER'));
+        setTeachers((users || []).filter((u) => userHasRole(u, 'TEACHER')));
         setClassGroups(groups || []);
         setCourses(courses || []);
       } catch (err) {

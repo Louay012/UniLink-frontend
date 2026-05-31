@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
+import { userHasRole } from '../../utils/roles';
 
 export default function AssignUserPage() {
   const { user, isAdmin } = useAuth();
@@ -30,7 +31,7 @@ export default function AssignUserPage() {
           apiRequest('/admin/users'),
           apiRequest('/admin/class-groups')
         ]);
-        setStudents((users || []).filter((u) => u.role === 'STUDENT'));
+        setStudents((users || []).filter((u) => userHasRole(u, 'STUDENT')));
         setClassGroups(groups || []);
       } catch (err) {
         setError(err.message || 'Failed to load data');

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
+import { userHasRole } from '../../utils/roles';
 
 export default function CreateClassGroupPage() {
   const { user, isAdmin } = useAuth();
@@ -37,7 +38,7 @@ export default function CreateClassGroupPage() {
           apiRequest('/admin/levels'),
           apiRequest('/admin/class-groups')
         ]);
-        setCoordinators((users || []).filter((u) => u.role === 'TEACHER'));
+        setCoordinators((users || []).filter((u) => u.role === 'COORDINATOR'));
         setDepartments(departments || []);
         setLevels(levels || []);
         setClassGroups(groups || []);

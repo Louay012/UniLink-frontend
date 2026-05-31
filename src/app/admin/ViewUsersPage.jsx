@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../services/api';
+import { userHasRole } from '../../utils/roles';
 
 const ROLES = ["STUDENT", "TEACHER", `COORDINATOR`, "ADMIN"];
 
@@ -32,7 +33,7 @@ const ViewUsersPage = () => {
       if (selectedRole === "ALL") {
         setUsers(data);
       } else {
-        setUsers(data.filter(u => u.role === selectedRole));
+        setUsers(data.filter(u => userHasRole(u, selectedRole)));
       }
     } catch (err) {
       setError(err.message);
@@ -92,10 +93,12 @@ const ViewUsersPage = () => {
                     <td>{u.first_name} {u.last_name}</td>
                     <td>{u.email}</td>
                     <td>
-                      <span className="role-badge">{u.role}</span>
+                      <span className="role-badge">
+                        {Array.isArray(u.roles) && u.roles.length ? u.roles.join(", ") : u.role}
+                      </span>
                     </td>
                     <td>                 
-                      {u.role === 'STUDENT'
+                      {userHasRole(u, 'STUDENT')
                         ? (u.code ?? <span style={{ color: 'var(--color-text-tertiary)' }}>Unassigned</span>)
                         : <span style={{ color: 'var(--color-text-tertiary)' }}>N/A</span>
                       }

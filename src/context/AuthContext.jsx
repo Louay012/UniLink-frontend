@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from "react";
 import { apiRequest } from "../services/api";
+import { userHasRole } from "../utils/roles";
 
 const AuthContext = createContext(null);
 
@@ -114,7 +115,7 @@ export function AuthProvider({ children }) {
       token,
       login,
       logout,
-      isAdmin: user?.role === "ADMIN",
+      isAdmin: userHasRole(user, "ADMIN"),
       roleOptions,
       selectedRole: {
         ...selectedRole,

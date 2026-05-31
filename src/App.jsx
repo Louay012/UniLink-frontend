@@ -27,13 +27,14 @@ import CreateClassGroupPage from './app/admin/CreateClassGroupPage';
 import CreateCoursePage     from './app/admin/CreateCoursePage';
 import AssignUserPage       from './app/admin/AssignUserPage';
 import AssignCoursePage     from './app/admin/AssignCoursePage';
+import { userHasRole } from "./utils/roles";
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, token } = useAuth();
   if (!token) return <Navigate to="/login" replace />;
 
   if (allowedRoles && allowedRoles.length > 0) {
-    if (!user || !user.role || !allowedRoles.includes(user.role)) {
+    if (!user || !allowedRoles.some((role) => userHasRole(user, role))) {
       return <Navigate to="/dashboard" replace />;
     }
   }
