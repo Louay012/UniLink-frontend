@@ -9,7 +9,6 @@ export default function CreateClassGroupPage() {
   const navigate = useNavigate();
 
   const [departments, setDepartments] = useState([]);
-  const [levels, setLevels] = useState([]);
   const [coordinators, setCoordinators] = useState([]);
   const [classGroups, setClassGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +19,6 @@ export default function CreateClassGroupPage() {
     code: '',
     name: '',
     departmentId: '',
-    levelId: '',
     coordinatorUserId: ''
   });
 
@@ -32,15 +30,14 @@ export default function CreateClassGroupPage() {
     async function load() {
       try {
         setLoading(true);
-        const [users, departments, levels, groups] = await Promise.all([
+        const [users, departments, groups] = await Promise.all([
           apiRequest('/admin/users'),
           apiRequest('/admin/departments'),
-          apiRequest('/admin/levels'),
           apiRequest('/admin/class-groups')
         ]);
-        setCoordinators((users || []).filter((u) => u.role === 'COORDINATOR'));
+        setCoordinators((users || []).filter((u) => u.role === 'TEACHER'));
         setDepartments(departments || []);
-        setLevels(levels || []);
+   
         setClassGroups(groups || []);
       } catch (err) {
         setError(err.message || 'Failed to load data');
@@ -62,12 +59,11 @@ export default function CreateClassGroupPage() {
           code: form.code,
           name: form.name,
           departmentId: form.departmentId,
-          levelId: form.levelId,
-          coordinatorUserId: form.coordinatorUserId || null
+          coordinatorUserId: form.coordinatorUserId
         })
       });
       setSuccess('Class group created successfully.');
-      setForm({ code: '', name: '', departmentId: '', levelId: '', coordinatorUserId: '' });
+      setForm({ code: '', name: '', departmentId: '', coordinatorUserId: '' });
       const groups = await apiRequest('/admin/class-groups');
       setClassGroups(groups || []);
     } catch (err) {
@@ -81,7 +77,7 @@ export default function CreateClassGroupPage() {
         <div>
           <p className="tag">UniLink</p>
           <h1>Create Class Group</h1>
-          <p className="subtitle">Define a new class group with department, level, and optional coordinator.</p>
+          <p className="subtitle">Define a new class group with department, and coordinator.</p>
           <small className="subtitle">Logged in as {user?.email}</small>
         </div>
       </header>
@@ -131,7 +127,7 @@ export default function CreateClassGroupPage() {
           </label>
           
           <label>
-            Coordinator (optional)
+            Coordinator
             <select
               value={form.coordinatorUserId}
               onChange={(e) => setForm((p) => ({ ...p, coordinatorUserId: e.target.value }))}

@@ -30,7 +30,7 @@ const getLinks = (isAdmin) => {
     return [
       ...baseLinks,
       { to: "/admin/add-user", label: "Add User" },
-      { to: "/admin/view-users", label: "View Users" },
+      { to: "/admin/view-users", label: "directory" },
       { to: "/admin/assign-courses", label: "Assign Courses" },
       { to: "/admin/assign-course", label: "Assign Course to group" },
       { to: "/admin/assign-user", label: "Assign student to group" },
