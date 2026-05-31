@@ -82,7 +82,8 @@ const ViewUsersPage = () => {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
-                    <th>Status</th>
+                  <th>Group</th> 
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -92,6 +93,12 @@ const ViewUsersPage = () => {
                     <td>{u.email}</td>
                     <td>
                       <span className="role-badge">{u.role}</span>
+                    </td>
+                    <td>                 
+                      {u.role === 'STUDENT'
+                        ? (u.code ?? <span style={{ color: 'var(--color-text-tertiary)' }}>Unassigned</span>)
+                        : <span style={{ color: 'var(--color-text-tertiary)' }}>N/A</span>
+                      }
                     </td>
                     <td>
                       <span className={u.status === "ACTIVE" ? "status-badge active" : "status-badge"}>
