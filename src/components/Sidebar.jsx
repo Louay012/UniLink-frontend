@@ -31,7 +31,11 @@ const getLinks = (isAdmin) => {
       { to: "/admin/add-user", label: "Add User" },
       { to: "/admin/view-users", label: "View Users" },
       { to: "/admin/assign-courses", label: "Assign Courses" },
-      { to: "/admin/academic-setup", label: "Academic Setup" },
+      { to: "/admin/assign-course", label: "Assign Course to group" },
+      { to: "/admin/assign-user", label: "Assign student to group" },
+      { to: "/admin/class-groups", label: "Create Class Group" },
+      { to: "/admin/courses", label: "Create Course" },
+     // { to: "/admin/academic-setup", label: "Academic Setup" },
       { to: "/feedback", label: "Bug Reports" }
     ];
   }

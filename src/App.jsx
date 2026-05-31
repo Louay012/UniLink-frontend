@@ -23,6 +23,10 @@ import AcademicSetupPage from "./app/admin/AcademicSetupPage";
 import FeedbackPage from "./app/feedback/FeedbackPage";
 import ProfilePage from "./app/profile/ProfilePage";
 import UserViewPage from "./app/users/UserViewPage";
+import CreateClassGroupPage from './app/admin/CreateClassGroupPage';
+import CreateCoursePage     from './app/admin/CreateCoursePage';
+import AssignUserPage       from './app/admin/AssignUserPage';
+import AssignCoursePage     from './app/admin/AssignCoursePage';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, token } = useAuth();
@@ -57,6 +61,10 @@ function AppRoutes() {
       <Route path="/admin/view-users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ViewUsersPage /></ProtectedRoute>} />
       <Route path="/admin/assign-courses" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AssignCoursesPage /></ProtectedRoute>} />
       <Route path="/admin/academic-setup" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AcademicSetupPage /></ProtectedRoute>} />
+      <Route path="/admin/class-groups" element={<ProtectedRoute allowedRoles={["ADMIN"]}><CreateClassGroupPage /></ProtectedRoute>} />
+      <Route path="/admin/courses"      element={<ProtectedRoute allowedRoles={["ADMIN"]}><CreateCoursePage /></ProtectedRoute>} />
+      <Route path="/admin/assign-user"  element={<ProtectedRoute allowedRoles={["ADMIN"]}><AssignUserPage /></ProtectedRoute>} />
+      <Route path="/admin/assign-course"element={<ProtectedRoute allowedRoles={["ADMIN"]}><AssignCoursePage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={target} replace />} />
     </Routes>
   );
