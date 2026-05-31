@@ -14,6 +14,8 @@ const ViewUsersPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState("ALL");
+  const [groups, setGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState("ALL"); 
 
   // Redirect if not admin
   useEffect(() => {
@@ -23,18 +25,27 @@ const ViewUsersPage = () => {
   // Fetch users
   useEffect(() => {
     fetchUsers();
-  }, [selectedRole]);
+  }, [selectedRole,selectedGroup]);
+
+  useEffect(() => {
+  apiRequest("/admin/class-groups")
+    .then((data) => setGroups(data || []))
+    .catch(() => {});
+}, []);
 
   async function fetchUsers() {
     try {
       setLoading(true);
       const data = await apiRequest("/admin/users");
-
-      if (selectedRole === "ALL") {
-        setUsers(data);
-      } else {
-        setUsers(data.filter(u => userHasRole(u, selectedRole)));
+      let filtered = data;
+      if (selectedRole !== "ALL") {
+        filtered = filtered.filter(u => userHasRole(u, selectedRole));
       }
+
+      if (selectedGroup !== "ALL") {
+        filtered = filtered.filter(u => u.code === selectedGroup);
+      }
+      setUsers(filtered);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -67,6 +78,18 @@ const ViewUsersPage = () => {
               <option value="ALL">All Roles</option>
               {ROLES.map((r) => (
                 <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+
+            <label htmlFor="group-filter" style={{ marginLeft: '12px' }}>Filter by Group: </label>
+            <select
+              id="group-filter"
+              value={selectedGroup}
+              onChange={(e) => setSelectedGroup(e.target.value)}
+            >
+              <option value="ALL">All Groups</option>
+              {groups.map((g) => (
+                <option key={g.code} value={g.code}>{g.code}</option>
               ))}
             </select>
           </div>
