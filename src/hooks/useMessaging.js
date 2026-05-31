@@ -335,6 +335,8 @@ export default function useMessaging(selectedRole, courseId) {
     if (payload.chat?.id) {
       setSelectedChatId(payload.chat.id);
     }
+
+    return payload.chat || null;
   }
 
   async function saveEditedMessage() {

@@ -93,10 +93,15 @@ function getInitials(value) {
 
 function ChatAvatar({ userId, fallback, className }) {
   const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const [photoKey, setPhotoKey] = useState(Date.now());
 
   React.useEffect(() => {
-    function refresh() { setPhotoKey(Date.now()); setPhotoLoaded(false); }
+    function refresh() {
+      setPhotoKey(Date.now());
+      setPhotoLoaded(false);
+      setPhotoFailed(false);
+    }
     window.addEventListener("avatar-updated", refresh);
     window.addEventListener("focus", refresh);
     return () => {
@@ -105,22 +110,25 @@ function ChatAvatar({ userId, fallback, className }) {
     };
   }, []);
 
-  const src = userId ? `${API_BASE}/profile/photo/${userId}?t=${photoKey}` : null;
+  const src = userId && !photoFailed ? `${API_BASE}/profile/photo/${userId}?t=${photoKey}` : null;
 
   // We add 'overflow-hidden p-0 flex items-center justify-center relative' 
   // to smoothly contain the img inside whatever class the caller provides
   return (
     <span className={`${className} overflow-hidden p-0 relative flex items-center justify-center`}>
-      {src && (
+      {src ? (
         <img
           src={src}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           style={{ borderRadius: 'inherit', display: photoLoaded ? "block" : "none" }}
           onLoad={() => setPhotoLoaded(true)}
-          onError={() => setPhotoLoaded(false)}
+          onError={() => {
+            setPhotoLoaded(false);
+            setPhotoFailed(true);
+          }}
         />
-      )}
+      ) : null}
       {!photoLoaded || !src ? fallback : null}
     </span>
   );

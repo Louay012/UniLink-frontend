@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { listCourses, listCourseAnnouncements, listCourseAttachments, getReadAnnouncementIds, getUnreadCounts, markAnnouncementsRead as apiMarkRead, markCourseAnnouncementsRead as apiMarkCourseRead } from "../services/course.service";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  getReadAnnouncementIds,
+  listCourseAnnouncements,
+  listCourseAttachments,
+  listCourses,
+  markAnnouncementsRead as apiMarkRead,
+  markCourseAnnouncementsRead as apiMarkCourseRead
+} from "../services/course.service";
 import { listChats, markChatRead } from "../services/chat.service";
+import { listGlobalAnnouncements } from "../services/announcement.service";
 import { connectSocket } from "../services/socket";
 
-// Only show notifications from the last 30 days
 const NOTIFICATION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default function useNotifications(selectedRole) {
@@ -11,39 +18,32 @@ export default function useNotifications(selectedRole) {
   const [serverReadIds, setServerReadIds] = useState(new Set());
   const [loading, setLoading] = useState(false);
 
-  // Real-time notifications via Socket.IO
   useEffect(() => {
     const socket = connectSocket();
-    if (!socket) return;
+    if (!socket) return undefined;
 
     function handleNotification(notif) {
-      if (!notif || !notif.id) return;
+      if (!notif?.id) return;
       setNotifications((prev) => {
-        if (prev.some((n) => n.id === notif.id)) return prev;
+        if (prev.some((item) => item.id === notif.id)) return prev;
         return [{ ...notif, read: false }, ...prev];
       });
     }
 
     socket.on("notification", handleNotification);
-
-    if (selectedRole?.userId) {
-      socket.emit("user:join", { userId: selectedRole.userId });
-    }
+    if (selectedRole?.userId) socket.emit("user:join", { userId: selectedRole.userId });
 
     return () => {
       socket.off("notification", handleNotification);
     };
   }, [selectedRole?.userId]);
 
-  // Load server-side read state
   useEffect(() => {
     let active = true;
     async function loadReadState() {
       try {
         const result = await getReadAnnouncementIds(selectedRole);
-        if (active && result?.ids) {
-          setServerReadIds(new Set(result.ids));
-        }
+        if (active && result?.ids) setServerReadIds(new Set(result.ids));
       } catch { /* ignore */ }
     }
     if (selectedRole?.userId) loadReadState();
@@ -59,32 +59,32 @@ export default function useNotifications(selectedRole) {
         const items = [];
         const cutoff = Date.now() - NOTIFICATION_WINDOW_MS;
 
-        // 1. Fetch courses + their announcements + attachments
         const coursesPayload = await listCourses(selectedRole);
         const courses = coursesPayload.items || [];
-
         const bundles = await Promise.all(
           courses.map(async (course) => {
             const [annPayload, attPayload] = await Promise.all([
               listCourseAnnouncements(selectedRole, course.id).catch(() => ({ items: [] })),
               listCourseAttachments(selectedRole, course.id).catch(() => ({ items: [] }))
             ]);
-            return { course, announcements: annPayload.items || annPayload || [], attachments: attPayload.items || attPayload || [] };
+            return {
+              course,
+              announcements: annPayload.items || [],
+              attachments: attPayload.items || []
+            };
           })
         );
 
         for (const bundle of bundles) {
-          // Announcement notifications (within time window)
           for (const ann of bundle.announcements) {
             const annTime = new Date(ann.createdAt || 0).getTime();
             if (annTime < cutoff) continue;
-
             items.push({
               id: `ann-${ann.id}`,
               announcementId: ann.id,
               type: "announcement",
               title: ann.title,
-              subtitle: `${bundle.course.title} · ${ann.priority === "URGENT" ? "🔴 Urgent" : "Announcement"}`,
+              subtitle: `${bundle.course.title} - Announcement`,
               timestamp: ann.createdAt,
               link: `/courses/${bundle.course.id}`,
               courseId: bundle.course.id,
@@ -92,17 +92,15 @@ export default function useNotifications(selectedRole) {
             });
           }
 
-          // Recent file notifications (within time window)
           for (const att of bundle.attachments) {
             const uploadTime = new Date(att.uploadedAt || att.createdAt || 0).getTime();
             if (uploadTime < cutoff) continue;
-
             items.push({
               id: `file-${att.id}`,
               announcementId: att.announcementId,
               type: "file",
               title: att.title || att.fileName || "New file",
-              subtitle: `${bundle.course.title} · File uploaded`,
+              subtitle: `${bundle.course.title} - File uploaded`,
               timestamp: att.uploadedAt || att.createdAt,
               link: `/courses/${bundle.course.id}`,
               courseId: bundle.course.id,
@@ -111,7 +109,38 @@ export default function useNotifications(selectedRole) {
           }
         }
 
-        // 2. Fetch chats for unread message counts
+        try {
+          const globalPayload = await listGlobalAnnouncements(selectedRole);
+          const globalAnnouncements = globalPayload.items || [];
+          for (const ann of globalAnnouncements) {
+            const annTime = new Date(ann.createdAt || 0).getTime();
+            if (annTime < cutoff) continue;
+            items.push({
+              id: `global-ann-${ann.id}`,
+              announcementId: ann.id,
+              type: "announcement",
+              title: ann.title,
+              subtitle: "Global announcement",
+              timestamp: ann.createdAt,
+              link: "/announcements",
+              read: Boolean(ann.read)
+            });
+
+            for (const att of ann.attachments || []) {
+              items.push({
+                id: `global-file-${att.id}`,
+                announcementId: ann.id,
+                type: "file",
+                title: att.title || att.fileName || "New file",
+                subtitle: "Global announcement file",
+                timestamp: ann.createdAt,
+                link: "/announcements",
+                read: Boolean(ann.read)
+              });
+            }
+          }
+        } catch { /* ignore */ }
+
         try {
           const chatsPayload = await listChats(selectedRole);
           const chats = chatsPayload.items || [];
@@ -129,10 +158,9 @@ export default function useNotifications(selectedRole) {
               });
             }
           }
-        } catch { /* chat loading failed — skip silently */ }
+        } catch { /* ignore */ }
 
-        if (!active) return;
-        setNotifications(items);
+        if (active) setNotifications(items);
       } catch {
         if (active) setNotifications([]);
       } finally {
@@ -144,21 +172,19 @@ export default function useNotifications(selectedRole) {
     return () => { active = false; };
   }, [selectedRole?.value, selectedRole?.userId]);
 
-  // Apply server read state — items whose announcement_id is in the read set are marked read
-  const enriched = useMemo(() => {
-    return notifications.map((n) => ({
-      ...n,
-      read: n.announcementId ? serverReadIds.has(n.announcementId) : n.read
-    }));
-  }, [notifications, serverReadIds]);
+  const enriched = useMemo(() => (
+    notifications.map((notification) => ({
+      ...notification,
+      read: notification.announcementId ? serverReadIds.has(notification.announcementId) || notification.read : notification.read
+    }))
+  ), [notifications, serverReadIds]);
 
-  const unreadCount = useMemo(() => enriched.filter((n) => !n.read).length, [enriched]);
+  const unreadCount = useMemo(() => enriched.filter((notification) => !notification.read).length, [enriched]);
 
   const markAllRead = useCallback(async () => {
-    // Get all unread announcement IDs and mark them on the server
     const announcementIds = notifications
-      .filter((n) => n.announcementId && !serverReadIds.has(n.announcementId))
-      .map((n) => n.announcementId);
+      .filter((notification) => notification.announcementId && !serverReadIds.has(notification.announcementId))
+      .map((notification) => notification.announcementId);
 
     if (announcementIds.length > 0) {
       try {
@@ -166,10 +192,9 @@ export default function useNotifications(selectedRole) {
       } catch { /* ignore */ }
     }
 
-    // Handle chat message notifications — mark each chat as read
     const chatIds = notifications
-      .filter((n) => n.type === "message" && n.id.startsWith("chat-") && !n.read)
-      .map((n) => n.id.replace("chat-", ""));
+      .filter((notification) => notification.type === "message" && notification.id.startsWith("chat-") && !notification.read)
+      .map((notification) => notification.id.replace("chat-", ""));
 
     for (const chatId of chatIds) {
       try {
@@ -177,24 +202,21 @@ export default function useNotifications(selectedRole) {
       } catch { /* ignore */ }
     }
 
-    // Optimistically mark all as read locally
     setServerReadIds((prev) => {
       const next = new Set(prev);
       for (const id of announcementIds) next.add(id);
       return next;
     });
 
-    // Update chat notifications locally
     if (chatIds.length > 0) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.type === "message" && !n.read ? { ...n, read: true } : n))
-      );
+      setNotifications((prev) => prev.map((notification) => (
+        notification.type === "message" ? { ...notification, read: true } : notification
+      )));
     }
   }, [notifications, serverReadIds, selectedRole]);
 
   const dismiss = useCallback(async (notificationId) => {
-    // Find the notification
-    const notif = notifications.find((n) => n.id === notificationId);
+    const notif = notifications.find((notification) => notification.id === notificationId);
     if (!notif) return;
 
     if (notif.announcementId) {
@@ -204,33 +226,27 @@ export default function useNotifications(selectedRole) {
       } catch { /* ignore */ }
     }
 
-    // Handle chat message notifications — extract chatId from notification id ("chat-{chatId}")
     if (notif.type === "message" && notif.id.startsWith("chat-")) {
       const chatId = notif.id.replace("chat-", "");
-      if (chatId) {
-        try {
-          await markChatRead(selectedRole, chatId);
-          // Update the notification locally to read
-          setNotifications((prev) =>
-            prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
-          );
-        } catch { /* ignore */ }
-      }
+      try {
+        await markChatRead(selectedRole, chatId);
+        setNotifications((prev) => prev.map((notification) => (
+          notification.id === notificationId ? { ...notification, read: true } : notification
+        )));
+      } catch { /* ignore */ }
     }
   }, [notifications, selectedRole]);
 
-  // Dismiss all notifications for a specific course (server-persisted)
   const dismissByCourse = useCallback(async (courseId) => {
     try {
       await apiMarkCourseRead(selectedRole, courseId);
     } catch { /* ignore */ }
 
-    // Optimistically mark all course announcements as read
     setServerReadIds((prev) => {
       const next = new Set(prev);
-      for (const n of notifications) {
-        if (n.courseId === courseId && n.announcementId) {
-          next.add(n.announcementId);
+      for (const notification of notifications) {
+        if (notification.courseId === courseId && notification.announcementId) {
+          next.add(notification.announcementId);
         }
       }
       return next;

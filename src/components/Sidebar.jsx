@@ -9,6 +9,7 @@ import {
   Home,
   GraduationCap,
   MessageCircle,
+  Bell,
   Users,
   UserPlus,
   ChevronDown,
@@ -21,6 +22,7 @@ import {
 const getLinks = (isAdmin) => {
   const baseLinks = [
     { to: "/dashboard", label: "Dashboard" },
+    { to: "/announcements", label: "Announcements" },
     { to: "/chat", label: "Chat" }
   ];
   if (isAdmin) {
@@ -40,6 +42,7 @@ const iconFor = (label) => {
   const key = (label || '').toLowerCase();
   if (key.includes('dash')) return Home;
   if (key.includes('course')) return GraduationCap;
+  if (key.includes('announcement')) return Bell;
   if (key.includes('chat') || key.includes('message')) return MessageCircle;
   if (key.includes('group') || key.includes('teacher') || key.includes('users')) return Users;
   if (key.includes('add')) return UserPlus;
@@ -261,6 +264,11 @@ export default function Sidebar({ isOpen, onClose }) {
                 {(!collapsed || isMobile) && <span>Chat</span>}
               </NavLink>
 
+              <NavLink to="/announcements" title={collapsed && !isMobile ? "Announcements" : undefined}
+                className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>
+                <Bell size={18} className="flex-shrink-0" />
+                {(!collapsed || isMobile) && <span>Announcements</span>}
+              </NavLink>
 
               <NavLink to="/feedback" title={collapsed && !isMobile ? "Bug Report" : undefined}
                 className={({ isActive }) => navLinkBase(isActive, collapsed && !isMobile)}>

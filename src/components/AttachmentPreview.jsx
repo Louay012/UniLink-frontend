@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { API_BASE } from "../services/api";
 
 function getAttachmentKind(att) {
@@ -26,6 +26,14 @@ const colorByKind = {
   video: { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-200" },
   file: { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }
 };
+
+const PREVIEWABLE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'txt', 'mp4', 'webm'];
+
+function isPreviewable(filename) {
+  if (!filename) return false;
+  const ext = String(filename).split('.').pop()?.toLowerCase();
+  return PREVIEWABLE_EXTS.includes(ext);
+}
 
 function formatSize(size) {
   const value = Number(size);

@@ -11,6 +11,7 @@ import LoginPage from "./app/login/LoginPage";
 import DashboardPage from "./app/dashboard/DashboardPage";
 import ChatPage from "./app/chat/ChatPage";
 import DirectoryPage from "./app/directory/DirectoryPage";
+import GlobalAnnouncementsPage from "./app/announcements/GlobalAnnouncementsPage";
 
 import CoursesPage from "./CoursesPage";
 import CourseDetails from "./CourseDetails";
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to={target} replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+      <Route path="/announcements" element={<ProtectedRoute><GlobalAnnouncementsPage /></ProtectedRoute>} />
       <Route path="/directory" element={<ProtectedRoute><DirectoryPage /></ProtectedRoute>} />
       <Route path="/courses" element={<ProtectedRoute><CoursesPage /></ProtectedRoute>} />
       <Route path="/courses/:id" element={<ProtectedRoute><CourseDetails /></ProtectedRoute>} />

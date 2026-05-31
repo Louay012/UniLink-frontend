@@ -15,6 +15,7 @@ import {
 import useMessaging from './hooks/useMessaging';
 import AnnouncementCard from './components/AnnouncementCard';
 import AttachmentPreview from './components/AttachmentPreview';
+import ChatBox from './components/ChatBox';
 
 function pickColor(seed) {
   const palette = ['#0e6ba8', '#a23b72', '#f18f01', '#06a77d', '#d62828', '#9d4edd'];
@@ -86,9 +87,14 @@ export default function CourseDetails({ basePath = '' }) {
         }
         : null;
 
-      const normalizedAttachments = (attachmentsPayload.items || []).map((attachment) => ({
+      const normalizedAttachments = (Array.isArray(attachmentsPayload?.items) ? attachmentsPayload.items : []).map((attachment) => ({
         ...attachment,
-        name: attachment.title || attachment.name || 'Attachment'
+        id: attachment.id || `${attachment.announcementId || 'file'}-${attachment.title || attachment.name || Math.random()}`,
+        name: attachment.title || attachment.name || attachment.fileName || 'Attachment',
+        title: attachment.title || attachment.name || attachment.fileName || 'Attachment',
+        type: attachment.type || attachment.mimeType || '',
+        size: Number.isFinite(Number(attachment.size ?? attachment.fileSize)) ? Number(attachment.size ?? attachment.fileSize) : null,
+        url: attachment.url || attachment.fileUrl || ''
       }));
 
       const byAnnouncement = normalizedAttachments.reduce((acc, attachment) => {
@@ -99,11 +105,11 @@ export default function CourseDetails({ basePath = '' }) {
         return acc;
       }, {});
 
-      const mappedAnnouncements = (announcementsPayload.items || []).map((announcement) => {
+      const mappedAnnouncements = (Array.isArray(announcementsPayload?.items) ? announcementsPayload.items : []).map((announcement) => {
         const mapped = mapAnnouncement(announcement, normalizedCourse?.teacher?.name);
         return {
           ...mapped,
-          attachments: byAnnouncement[String(announcement.id)] || []
+          attachments: byAnnouncement[String(announcement.id)] || (Array.isArray(mapped.attachments) ? mapped.attachments : [])
         };
       });
 
