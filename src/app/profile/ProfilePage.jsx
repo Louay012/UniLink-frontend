@@ -428,9 +428,11 @@ export default function ProfilePage() {
   const initials       = fullName.split(" ").filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join("") || "U";
   const sp             = profile.studentProfile;
   const tp             = profile.teacherProfile;
+  const cp             = profile.coordinatorProfile;
   const roleLabels     = (profile.roles || []).map(r => r.label).join(", ") || "User";
   const academicSummary = sp ? [sp.classGroup?.code, sp.level?.code].filter(Boolean).join(" · ") : "";
   const joinDate       = new Date(profile.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const tpHireDate     = tp && tp.hireDate ? new Date(tp.hireDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : null;
 
   // Whether the user has a server-side photo loaded (not just a preview)
   const hasServerPhoto = !!photoSrc;
@@ -580,11 +582,23 @@ export default function ProfilePage() {
           {tp && (
             <>
               <SectionHeading title="Teacher Info" />
+              <InfoRow icon={Briefcase} label="Professional Grade" value={tp.professionalGrade} />
+              <InfoRow icon={Shield} label="Employment Status" value={tp.employmentStatus} />
+              <InfoRow icon={CalendarDays} label="Hire Date" value={tpHireDate} />
               <InfoRow icon={Hash}      label="Employee Code" value={tp.employeeCode} />
               <InfoRow icon={Briefcase} label="Academic Rank" value={tp.academicRank} />
               <InfoRow icon={MapPin}    label="Office"        value={tp.officeLocation} />
               <InfoRow icon={Clock}     label="Office Hours"  value={tp.officeHours} />
               <InfoRow icon={User}      label="Bio"           value={tp.bio} />
+            </>
+          )}
+
+          {cp && cp.supervisedGroups && cp.supervisedGroups.length > 0 && (
+            <>
+              <SectionHeading title="Coordinator" />
+              {cp.supervisedGroups.map((g) => (
+                <InfoRow key={g.id} icon={Building2} label="Supervised Group" value={`${g.name} (${g.code})`} />
+              ))}
             </>
           )}
 

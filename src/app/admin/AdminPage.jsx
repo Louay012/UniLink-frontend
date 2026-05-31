@@ -21,6 +21,10 @@ export default function AdminPage() {
   const [classGroups, setClassGroups] = useState([]);
   const [classLoading, setClassLoading] = useState(true);
   const [classError, setClassError] = useState("");
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", phone: "", status: "" });
+  const [editError, setEditError] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Form state for creating a new user
   const [form, setForm] = useState({
@@ -136,6 +140,33 @@ export default function AdminPage() {
       setUsers(prev => prev.filter(u => u.id !== userId));
     } catch (err) {
       alert("Failed to delete user: " + err.message);
+    }
+  }
+
+  function startEdit(user) {
+    setEditError("");
+    setEditingUserId(user.id);
+    setEditForm({ firstName: user.first_name || "", lastName: user.last_name || "", email: user.email || "", phone: user.phone || "", status: user.status || "ACTIVE" });
+    setShowEditModal(true);
+  }
+
+  function cancelEdit() {
+    setEditingUserId(null);
+    setEditForm({ firstName: "", lastName: "", email: "", phone: "", status: "" });
+    setShowEditModal(false);
+  }
+
+  async function saveEdit(userId) {
+    setEditError("");
+    try {
+      const updated = await apiRequest(`/admin/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(editForm)
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updated } : u));
+      cancelEdit();
+    } catch (err) {
+      setEditError(err.message || "Failed to update user");
     }
   }
 
@@ -550,9 +581,8 @@ export default function AdminPage() {
                       </select>
                     </td>
                     <td>
-                      <button className="link-danger" onClick={() => handleDelete(u.id)}>
-                        Delete
-                      </button>
+                      <button className="link" onClick={() => startEdit(u)}>Edit</button>
+                      <button className="link-danger" onClick={() => handleDelete(u.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -561,6 +591,49 @@ export default function AdminPage() {
           </div>
         ) : null}
       </section>
+      {showEditModal && editingUserId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(2,6,23,0.55)', backdropFilter: 'blur(4px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) cancelEdit(); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+            <h3 className="m-0 mb-3">Edit User</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <label>
+                First Name
+                <input value={editForm.firstName} onChange={(e) => setEditForm(prev => ({ ...prev, firstName: e.target.value }))} />
+              </label>
+              <label>
+                Last Name
+                <input value={editForm.lastName} onChange={(e) => setEditForm(prev => ({ ...prev, lastName: e.target.value }))} />
+              </label>
+              <label className="col-span-2">
+                Email
+                <input type="email" value={editForm.email} onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))} />
+              </label>
+              <label>
+                Phone
+                <input value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
+              </label>
+              <label>
+                Status
+                <select value={editForm.status} onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </label>
+            </div>
+
+            {editError ? <p className="error-banner">{editError}</p> : null}
+
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={cancelEdit} className="py-2 px-3 rounded-md">Cancel</button>
+              <button onClick={() => saveEdit(editingUserId)} className="py-2 px-3 rounded-md primary-btn">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

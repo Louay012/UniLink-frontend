@@ -56,6 +56,16 @@ function UsersTab() {
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState('ALL');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({
+    firstName: '', lastName: '', email: '', phone: '', status: 'ACTIVE', role: '',
+    // teacher fields
+    employeeCode: '', professionalGrade: '', employmentStatus: '', academicRank: '', hireDate: '', officeLocation: '', officeHours: '', bio: ''
+  });
+  const [editError, setEditError] = useState('');
+  const [teacherProfile, setTeacherProfile] = useState(null);
+  const [coordinatorProfile, setCoordinatorProfile] = useState(null);
 
   useEffect(() => {
     apiRequest('/admin/class-groups')
@@ -84,6 +94,109 @@ function UsersTab() {
       setError(err.message || 'Failed to load users');
     } finally {
       setLoading(false);
+    }
+  }
+
+  function openEditModal(user) {
+    setEditingUser(user);
+    setEditError('');
+    setShowEditModal(true);
+    // fetch detailed info
+    (async () => {
+      try {
+        const details = await apiRequest(`/admin/users/${user.id}/details`);
+        setTeacherProfile(details.teacherProfile || null);
+        setCoordinatorProfile(details.coordinatorProfile || null);
+        setEditForm(prev => ({
+          ...prev,
+          firstName: details.firstName || user.first_name || '',
+          lastName: details.lastName || user.last_name || '',
+          email: details.email || user.email || '',
+          phone: details.phone || user.phone || '',
+          status: details.status || user.status || 'ACTIVE',
+          role: (details.roles && details.roles.length) ? details.roles[0] : (user.role || 'STUDENT'),
+          employeeCode: details.teacherProfile?.employeeCode || '',
+          professionalGrade: details.teacherProfile?.professionalGrade || '',
+          employmentStatus: details.teacherProfile?.employmentStatus || '',
+          academicRank: details.teacherProfile?.academicRank || '',
+          hireDate: details.teacherProfile?.hireDate ? details.teacherProfile.hireDate.split('T')[0] : '',
+          officeLocation: details.teacherProfile?.officeLocation || '',
+          officeHours: details.teacherProfile?.officeHours || '',
+          bio: details.teacherProfile?.bio || ''
+        }));
+      } catch (err) {
+        // fallback to basic user info
+        setEditForm(prev => ({
+          ...prev,
+          firstName: user.first_name || '',
+          lastName: user.last_name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          status: user.status || 'ACTIVE',
+          role: Array.isArray(user.roles) && user.roles.length ? user.roles[0] : (user.role || 'STUDENT')
+        }));
+        setTeacherProfile(null);
+        setCoordinatorProfile(null);
+      }
+    })();
+  }
+
+  function closeEditModal() {
+    setShowEditModal(false);
+    setEditingUser(null);
+    setEditForm({ firstName: '', lastName: '', email: '', phone: '', status: 'ACTIVE', role: '' });
+    setEditError('');
+  }
+
+  async function saveEdit(id) {
+    setEditError('');
+    try {
+      // Update basic fields
+      const payload = {
+        firstName: editForm.firstName,
+        lastName: editForm.lastName,
+        email: editForm.email,
+        phone: editForm.phone,
+        status: editForm.status
+      };
+
+      const updated = await apiRequest(`/admin/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+
+      // If role changed, update role too
+      const currentRole = Array.isArray(editingUser.roles) && editingUser.roles.length ? editingUser.roles[0] : editingUser.role;
+      if (editForm.role && editForm.role !== currentRole) {
+        await apiRequest(`/admin/users/${id}/role`, {
+          method: 'PATCH',
+          body: JSON.stringify({ role: editForm.role })
+        });
+      }
+
+      // If TEACHER, update teacher profile
+      if (editForm.role === 'TEACHER') {
+        const teacherPayload = {
+          employeeCode: editForm.employeeCode,
+          professionalGrade: editForm.professionalGrade,
+          employmentStatus: editForm.employmentStatus,
+          academicRank: editForm.academicRank,
+          hireDate: editForm.hireDate || null,
+          officeLocation: editForm.officeLocation,
+          officeHours: editForm.officeHours,
+          bio: editForm.bio
+        };
+        await apiRequest(`/admin/users/${id}/teacher`, {
+          method: 'PATCH',
+          body: JSON.stringify(teacherPayload)
+        });
+      }
+
+      // Refresh local list entry
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...updated, role: editForm.role, roles: [editForm.role] } : u)));
+      closeEditModal();
+    } catch (err) {
+      setEditError(err.message || 'Failed to update user');
     }
   }
 
@@ -129,6 +242,7 @@ function UsersTab() {
                 <th>Role</th>
                 <th>Group</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -154,12 +268,138 @@ function UsersTab() {
                       {u.status || 'ACTIVE'}
                     </span>
                   </td>
+                  <td>
+                    <button className="link" onClick={() => openEditModal(u)}>Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {showEditModal && editingUser && (
+          <div className="announcement-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) closeEditModal(); }}>
+            <div className="announcement-modal-panel">
+              <div className="announcement-modal-header">
+                <div>
+                  <p className="announcement-modal-kicker">Edit User</p>
+                  <h3>{editingUser.first_name} {editingUser.last_name}</h3>
+                  <p className="announcement-modal-subtitle">Update account details, role, and teacher profile.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button aria-label="Close" className="announcement-modal-close" onClick={closeEditModal}>✕</button>
+                </div>
+              </div>
+
+              <form className="announcement-modal-form" onSubmit={(e) => { e.preventDefault(); saveEdit(editingUser.id); }}>
+                <div className="announcement-modal-grid">
+                  <div className="announcement-field">
+                    <span>First name</span>
+                    <input value={editForm.firstName} onChange={(e) => setEditForm(prev => ({ ...prev, firstName: e.target.value }))} />
+                  </div>
+
+                  <div className="announcement-field">
+                    <span>Last name</span>
+                    <input value={editForm.lastName} onChange={(e) => setEditForm(prev => ({ ...prev, lastName: e.target.value }))} />
+                  </div>
+
+                  <div className="announcement-field announcement-field-wide">
+                    <span>Email</span>
+                    <input type="email" value={editForm.email} onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))} />
+                  </div>
+
+                  <div className="announcement-field">
+                    <span>Phone</span>
+                    <input value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
+                  </div>
+
+                  <div className="announcement-field">
+                    <span>Status</span>
+                    <select value={editForm.status} onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="INACTIVE">INACTIVE</option>
+                    </select>
+                  </div>
+
+                  <div className="announcement-field">
+                    <span>Role</span>
+                    <select value={editForm.role} onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value }))}>
+                      <option value="STUDENT">STUDENT</option>
+                      <option value="TEACHER">TEACHER</option>
+                      <option value="COORDINATOR">COORDINATOR</option>
+                      <option value="ADMIN">ADMIN</option>
+                    </select>
+                  </div>
+                </div>
+
+                {editError ? <p className="error-banner">{editError}</p> : null}
+
+                {/* Teacher fields */}
+                {editForm.role === 'TEACHER' && (
+                  <div>
+                    <div style={{ height: 8 }} />
+                    <div style={{ fontWeight: 800, color: '#334155', marginBottom: 8 }}>Teacher profile</div>
+                    <div className="announcement-modal-grid">
+                      <div className="announcement-field">
+                        <span>Employee code</span>
+                        <input value={editForm.employeeCode} onChange={(e) => setEditForm(prev => ({ ...prev, employeeCode: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field">
+                        <span>Professional grade</span>
+                        <input value={editForm.professionalGrade} onChange={(e) => setEditForm(prev => ({ ...prev, professionalGrade: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field">
+                        <span>Employment status</span>
+                        <input value={editForm.employmentStatus} onChange={(e) => setEditForm(prev => ({ ...prev, employmentStatus: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field">
+                        <span>Academic rank</span>
+                        <input value={editForm.academicRank} onChange={(e) => setEditForm(prev => ({ ...prev, academicRank: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field">
+                        <span>Hire date</span>
+                        <input type="date" value={editForm.hireDate} onChange={(e) => setEditForm(prev => ({ ...prev, hireDate: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field">
+                        <span>Office location</span>
+                        <input value={editForm.officeLocation} onChange={(e) => setEditForm(prev => ({ ...prev, officeLocation: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field announcement-field-wide">
+                        <span>Office hours</span>
+                        <input value={editForm.officeHours} onChange={(e) => setEditForm(prev => ({ ...prev, officeHours: e.target.value }))} />
+                      </div>
+                      <div className="announcement-field announcement-field-wide">
+                        <span>Bio</span>
+                        <textarea value={editForm.bio} onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))} rows={4} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coordinator groups (read-only) */}
+                {coordinatorProfile && coordinatorProfile.supervisedGroups && coordinatorProfile.supervisedGroups.length > 0 && (
+                  <div>
+                    <div style={{ height: 8 }} />
+                    <div style={{ fontWeight: 800, color: '#334155', marginBottom: 8 }}>Coordinator — supervised groups</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {coordinatorProfile.supervisedGroups.map(g => (
+                        <span key={g.id} className="role-badge">{g.code} — {g.name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button type="button" onClick={closeEditModal} className="py-2 px-3 rounded-md">Cancel</button>
+                  <button type="submit" className="primary-btn">Save changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+            
     </section>
   );
 }
