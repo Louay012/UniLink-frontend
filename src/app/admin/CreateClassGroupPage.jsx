@@ -37,7 +37,7 @@ export default function CreateClassGroupPage() {
           apiRequest('/admin/levels'),
           apiRequest('/admin/class-groups')
         ]);
-        setCoordinators((users || []).filter((u) => u.role === 'COORDINATOR'));
+        setCoordinators((users || []).filter((u) => u.role === 'TEACHER'));
         setDepartments(departments || []);
         setLevels(levels || []);
         setClassGroups(groups || []);
